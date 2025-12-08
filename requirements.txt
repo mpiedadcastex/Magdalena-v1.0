@@ -1,0 +1,45 @@
+# --- Core Deep Learning (PyTorch) ---
+# Se necesita una versión reciente para las optimizaciones de Transformer
+torch>=2.1.0
+torchaudio>=2.1.0
+torchvision>=0.16.0
+
+# --- Manipulación Tensorial Avanzada (CRUCIAL para tu TFG) ---
+# Necesaria para programar 'Sparsifiner' y 'Sliding Window Attention' 
+# Facilita proyectar matrices de claves/valores y reordenar dimensiones [cite: 33, 99]
+einops>=0.7.0
+
+# --- Procesamiento de Audio (Entrada) ---
+# Para generar el espectrograma Mel logarítmico y STFT [cite: 17, 19]
+librosa>=0.10.1
+soundfile>=0.12.1
+resampy>=0.4.2
+
+# --- Procesamiento MIDI y Partituras (Salida) ---
+# Para convertir tokens a MIDI [cite: 53] y evaluar alineación [cite: 60]
+pretty_midi>=0.2.10
+mido>=1.3.0
+# Para exportar a MusicXML como pide la propuesta 
+music21>=9.1.0
+
+# --- Ciencia de Datos y Métricas ---
+numpy>=1.24.3
+pandas>=2.1.0
+scikit-learn>=1.3.0  # Para calcular F1-score (Onset/Offset/Velocity) [cite: 66]
+mir_eval>=0.7        # Estándar de la industria para métricas de transcripción musical
+
+# --- Configuración y Utilidades ---
+pyyaml>=6.0.1        # Para leer tus configs (baseline.yaml, sparsifiner.yaml)
+tqdm>=4.66.0         # Barras de progreso
+requests>=2.31.0     # Para descargar el MAESTRO dataset
+
+# --- Visualización y Notebooks ---
+matplotlib>=3.8.0
+seaborn>=0.13.0
+ipykernel>=6.25.0
+
+# --- Interfaz Gráfica (Aplicación de Escritorio) ---
+# Necesaria para el objetivo de "Aplicación de escritorio interactiva" 
+# CustomTkinter es moderno y fácil. Si prefieres PyQt, cámbialo aquí.
+customtkinter>=5.2.0
+packaging

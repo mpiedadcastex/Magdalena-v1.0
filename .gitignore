@@ -1,0 +1,9 @@
+# .gitignore
+.venv/
+.vscode/
+__pycache__/
+*.pyc
+data/
+*.wav
+*.midi
+*.zip
