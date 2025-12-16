@@ -7,13 +7,11 @@ from src.models.transformer import PianoTranscriptionModel
 # --- 1. CONFIGURACIÓN DE COLAB Y RUTAS ---
 
 # La ruta donde está la carpeta MAESTRO.
-# ADVERTENCIA: En Colab, si has montado Drive, la ruta será diferente
-# o si lo has subido al entorno temporal /content/
-# Ajusta esta ruta si es necesario.
-# (Según tu estructura, asumimos que está en la carpeta maestro-v3.0.0 anidada)
-# Si has subido la carpeta a /content/maestro-v3.0.0:
-# DATA_ROOT = '/content/maestro-v3.0.0/maestro-v3.0.0' 
-DATA_ROOT = 'data/raw/maestro-v3.0.0/maestro-v3.0.0' # Manteniendo la estructura local por ahora
+# Dirección en Google Drive para Colab (asegúrate de montar Drive primero)
+DATA_ROOT = '/content/drive/MyDrive/TFG_Data/maestro-v3.0.0/maestro-v3.0.0' 
+
+# Direccion local (descomenta si trabajas localmente)
+#DATA_ROOT = 'data/raw/maestro-v3.0.0/maestro-v3.0.0' # Manteniendo la estructura local por ahora
 
 # Asegúrate de que las carpetas de salida existen
 os.makedirs('checkpoints', exist_ok=True)
