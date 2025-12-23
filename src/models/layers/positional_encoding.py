@@ -3,8 +3,9 @@ import torch.nn as nn
 import math
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, d_model, max_len=5000, dropout=0.1):
-        super().__init__()
+    # CAMBIO 1: Aumentar max_len (original 5000) para evitar problemas con secuencias largas
+    def __init__(self, d_model, max_len=10000, dropout=0.1): 
+        super().__init__()                                   
         self.dropout = nn.Dropout(p=dropout)
 
         # Crear una matriz de posiciones y dimensiones
@@ -27,5 +28,8 @@ class PositionalEncoding(nn.Module):
         x: Tensor de entrada [Batch, Secuencia, Features]
         """
         # Sumamos la codificación posicional hasta la longitud actual de x
+        seq_len = x.size(1)
+        if seq_len > self.pe.size(1):
+            x = x[:, :self.pe.size(1), :]
         x = x + self.pe[:, :x.size(1), :]
         return self.dropout(x)
