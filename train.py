@@ -11,7 +11,7 @@ mp = MidiProcessor() # Tus parámetros de MIDI
 # 2. Obtener los loaders pasando los objetos 'ap' y 'mp'
 train_loader, val_loader = get_dataloaders(
     # Para ejecución en Colab
-    csv_path='/content/drive/MyDrive/TFG_Data/maestro-v3.0.0/',
+    csv_path='/content/drive/MyDrive/TFG_Data/maestro-v3.0.0/maestro-v3.0.0_metadata.csv',
     root_dir= '/content/drive/MyDrive/TFG_Data/maestro-v3.0.0/maestro-v3.0.0',
 
     # Para ejecución en local
