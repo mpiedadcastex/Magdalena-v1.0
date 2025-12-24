@@ -9,8 +9,8 @@ mp = MidiProcessor() # Tus parámetros de MIDI
 
 # 2. Obtener los loaders pasando los objetos 'ap' y 'mp'
 train_loader, val_loader = get_dataloaders(
-    csv_path='data/maestro-v3.0.0_metadata.csv',
-    root_dir='data/raw/maestro-v3.0.0/maestro-v3.0.0',
+    csv_path='src/data/maestro-v3.0.0_metadata.csv',
+    root_dir='src/data/raw/maestro-v3.0.0/maestro-v3.0.0',
     audio_processor=ap,  # <--- Inyección de dependencia
     midi_processor=mp,
     batch_size=4
