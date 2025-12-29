@@ -151,7 +151,13 @@ class MaskPredictor(nn.Module):
         cfg = self.cfg.SPAR
 
         B, H, N, C = q.shape
-        assert self.num_tokens == N
+        # --- FIX AUDIO 1: Eliminar la aserción de tamaño fijo ---
+        #assert self.num_tokens == N
+
+        # Si el audio es más largo de lo esperado, cortamos para evitar crash (seguridad)
+        if N > self.num_tokens:
+             raise ValueError(f"El audio (Len={N}) es más largo que el max_seq_len definido ({self.num_tokens}). Aumenta max_seq_len en el Encoder.")
+        
         q, k = self.proj_c_q(q), self.proj_c_k(k)  # [B, H, N, c]
         if token_mask is not None:
             # token_mask: [B, N-1]
@@ -159,13 +165,23 @@ class MaskPredictor(nn.Module):
             k[..., 1:, :] = k[..., 1:, :].masked_fill(~token_mask[:, None, :, None], 0.)
 
         k = k.permute(0, 1, 3, 2)  # [B, H, c, N]
-        k = k @ self.proj_n  # [B, H, c, k]
+
+        # --- FIX AUDIO 2: Slicing dinámico de la proyección ---
+        # La matriz proj_n tiene tamaño [Max_Len, Reduced_Len].
+        # Como nuestro audio actual N es menor que Max_Len, usamos solo las primeras N filas.
+        # k: [..., N] @ proj_n: [N, Reduced]
+        proj_n_sliced = self.proj_n[:N, :] # Tomamos solo lo necesario
+        k = k @ proj_n_sliced  # [B, H, c, k]
 
         # TODO: should call this only once during inference.
         if self.training and self.cfg.LOSS.USE_ATTN_RECON:
-            basis = self.proj_back_n.permute(1, 0)
+            # --- FIX AUDIO 3 ---
+            basis = self.proj_back_n[:N, :].permute(1, 0)
         else:
-            basis = self.proj_back_n.permute(1, 0)
+            # --- FIX AUDIO 3 ---
+            # Igual aquí, cortamos proj_back_n al tamaño N actual
+            basis = self.proj_back_n[:N, :].permute(1, 0)
+            
             # basis[basis.abs() <= cfg.BASIS_THRESHOLD] = 0.
             # For Linear attention visualization
             basis = self.basis_threshold(basis.abs())

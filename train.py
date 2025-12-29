@@ -25,6 +25,6 @@ train_loader, val_loader = get_dataloaders(
 
 # 3. Comprobar
 for batch_audio, batch_midi in train_loader:
-    print("Audio shape:", batch_audio.shape) # Debería ser (4, 229, Tiempo_Largo)
-    print("Midi shape:", batch_midi.shape)   # Debería ser (4, Tiempo_Notas)
+    print("Audio shape:", batch_audio.shape) # Debería ser (4, 229, Frames)
+    print("Midi shape:", batch_midi.shape)   # Debería ser (4, Tokens)
     break

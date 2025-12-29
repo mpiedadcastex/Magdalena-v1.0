@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from .sparsifiner import Block, trunc_normal_
-
+    
 class AudioSparsifinerEncoder(nn.Module):
     def __init__(
             self,
