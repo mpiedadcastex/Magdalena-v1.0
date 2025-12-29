@@ -4,7 +4,7 @@ import torch
 import torchaudio.transforms as T
 
 class AudioProcessor:
-    def __init__(self, sample_rate=16000, n_mels=229, n_fft=2048, hop_length=320, fmin=31, fmax=2840):
+    def __init__(self, sample_rate=16000, n_mels=229, n_fft=2048, hop_length=320, fmin=31, fmax=8000):
         """
         Clase para transformar audio crudo en Espectrogramas Mel Logarítmicos.
         
@@ -38,7 +38,7 @@ class AudioProcessor:
         """
         # Si el audio no estaba cargado se carga
         if isinstance(audio, str):
-            audio = self.load_audio(audio)
+            audio, _ = self.load_audio(audio)
 
         # Cálculo de espectrograma (escala lineal)
         mel_spectrogram = librosa.feature.melspectrogram(
@@ -55,8 +55,12 @@ class AudioProcessor:
         # Pasamos la amplitud a decibelios 
         mel_spectrogram_db = librosa.power_to_db(mel_spectrogram, ref=np.max, top_db=60)
 
-        # Devolvemos el espectrograma
-        return mel_spectrogram_db 
+        # Normalizamos para facilitar el trabajo a la red
+        mel_normalized = (mel_spectrogram_db + 60)/60 
+
+        # Devolvemos el espectrograma tal que:
+        # Shape -> (n_mels, Time) -> (229, Time)
+        return mel_normalized 
         
        
 
