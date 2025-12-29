@@ -4,10 +4,10 @@ import torch.optim as optim
 from tqdm import tqdm # Barra de progreso
 
 # Tus módulos
-from data.audio_proc import AudioProcessor
-from data.midi_proc import MidiProcessor
-from data.maestro_dataset import get_dataloaders
-from models.transformer import AudioToScoreTransformer
+from src.data.audio_proc import AudioProcessor
+from src.data.midi_proc import MidiProcessor
+from src.data.maestro_dataset import get_dataloaders
+from src.models.transformer import PianoTranscriptionModel
 from utils import get_model_config
 
 # --- HIPERPARÁMETROS ---
@@ -39,7 +39,7 @@ def train():
     # IMPORTANTE: Obtener vocab_size de tu encoder o ponerlo a mano
     vocab_size = mp.vocab_size 
     
-    model = AudioToScoreTransformer(
+    model = PianoTranscriptionModel(
         midi_vocab_size=vocab_size,
         encoder_cfg=cfg,
         embed_dim=256,       # 256 para probar, sube a 512 si tienes VRAM
