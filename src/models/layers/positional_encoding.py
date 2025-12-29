@@ -14,8 +14,8 @@ class PositionalEncoding(nn.Module):
         pe = torch.zeros(max_len, 1, d_model)
 
         # Aplicar las fórmulas de codificación posicional
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
+        pe[:, 0, 0::2] = torch.sin(position * div_term)
+        pe[:, 0, 1::2] = torch.cos(position * div_term)
         
         # Registramos como buffer (se guarda con el modelo pero no se entrena)
         self.register_buffer('pe', pe)
