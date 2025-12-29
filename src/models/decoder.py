@@ -1,5 +1,7 @@
 import torch
 import torch.nn as nn
+import math
+
 from .layers.positional_encoding import PositionalEncoding
 
 class MidiDecoder(nn.Module):
@@ -37,18 +39,19 @@ class MidiDecoder(nn.Module):
         mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
         return mask
     
-    def forward(self, tgt, memory):
+    def forward(self, tgt, memory, tgt_padding_mask=None):
         """
         Args:
             tgt: Secuencia de tokens objetivo [Batch, Seq_Len] (lo que ya se ha escrito)
             memory: Salida del Encoder [Batch, Audio_Len, d_model] (el "contexto" del audio)
+            tgt_padding_mask: [Batch, Seq_Len] (Booleano: True donde es padding)
         """  
-        # 1. Crear Máscara
+        # 1. Crear Máscara triangular
         seq_len = tgt.size(1)
-        tgt_mask = self.generate_square_subsequent_mask(seq_len).to(tgt.device)
+        tgt_mask = self.generate_square_subsequent_mask(seq_len, tgt.device)
 
         # 2. Embedding y Positional Encoding
-        x = self.embedding(tgt) * torch.sqrt(torch.tensor(self.d_model, dtype=torch.float32))
+        x = self.embedding(tgt) * math.sqrt(self.d_model)
         x = self.pos_encoder(x)
 
         # 3. Pasar por el Transformer Decoder
@@ -57,7 +60,8 @@ class MidiDecoder(nn.Module):
         output = self.transformer_decoder(
             tgt = x,
             memory = memory,
-            tgt_mask = tgt_mask
+            tgt_mask = tgt_mask,
+            tgt_key_padding_mask=tgt_padding_mask
         )
 
         # 4. Capa de Predicción
