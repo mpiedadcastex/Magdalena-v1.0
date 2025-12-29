@@ -3,7 +3,7 @@ import torch.nn as nn
 from types import SimpleNamespace # Para simular el objeto de configuración
 
 # Importa tu clase (asegúrate de que la ruta sea correcta)
-from models.encoder import AudioSparsifinerEncoder
+from src.models.sparsifiner_encoder import AudioSparsifinerEncoder
 
 # --- 1. CREAR UNA CONFIGURACIÓN FALSA (MOCK CONFIG) ---
 # El código original del Sparsifiner espera acceder a variables como cfg.SPAR.BASIS_THRESHOLD
