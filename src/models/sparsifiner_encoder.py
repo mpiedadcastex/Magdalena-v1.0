@@ -53,16 +53,16 @@ class AudioSparsifinerEncoder(nn.Module):
 
         # Inicialización de pesos
         trunc_normal_(self.pos_embed, std=0.02)
-        self.apply(self._init_weigths)
+        self.apply(self._init_weights)
 
-    def _init_weigths(self, m):
+    def _init_weights(self, m):
         if isinstance(m, nn.Linear):
-            trunc_normal_(m.weigth, std=0.02)
+            trunc_normal_(m.weight, std=0.02)
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
         elif isinstance(m, nn.LayerNorm):
             nn.init.constant_(m.bias, 0)
-            nn.init.constant_(m.weigth, 1.0)
+            nn.init.constant_(m.weight, 1.0)
 
 
     def forward(self, x):
