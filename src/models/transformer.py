@@ -1,87 +1,73 @@
 import torch
 import torch.nn as nn
-from .encoder import AudioEncoder
+from .sparsifiner_encoder import AudioSparsifinerEncoder
+from .layers.positional_encoding import PositionalEncoding
 from .decoder import MidiDecoder
 
 class PianoTranscriptionModel(nn.Module):
-    def __init__(self, config):
-        """
-        Modelo completo de Transcripción de Piano.
-        Combina un Encoder de Audio (AudioEncoder) y un Decoder de MIDI (MidiDecoder).
-
-        Args:
-            config: Diccionario con hiperparametros (n_mels, d_model, vocab_size, ...).
-        """
+    def __init__(
+        self, 
+        midi_vocab_size,
+        encoder_cfg,
+        embed_dim=512,
+        nhead=8,
+        num_encoder_layers=6,
+        num_decoder_layers=6,
+        dim_feedforward=2048,
+        dropout=0.1,
+        max_audio_len=70000
+    ):
+        
         super().__init__()
 
-        # 1. Inicialización del Encoder
-        self.encoder = AudioEncoder(
-            n_mels=config['n_mels'],
-            d_model=config['d_model'],
-            nhead=config['nhead'],
-            num_layers=config['num_encoder_layers'],
-            dim_feedforward=config['dim_feedforward'],
-            dropout=config['dropout']
+        # 1. ENCODER SPARSIFINER
+        self.encoder = AudioSparsifinerEncoder(
+            mel_bins=229,
+            max_seq_len=max_audio_len,
+            embed_dim=embed_dim,
+            depth=num_encoder_layers,
+            num_heads=nhead,
+            reduce_n_factor=16,     # Factor alto para ahorrar memoria
+            attn_keep_rate=0.25,
+            drop_rate=dropout,
+            cfg=encoder_cfg         # Aquí es donde le pasamos la configuracion
         )
 
-        # 2. Inicialización del Decoder
+        # 2. DECODER
         self.decoder = MidiDecoder(
-            vocab_size=config['vocab_size'],
-            d_model=config['d_model'],
-            nhead=config['nhead'],
-            num_layers=config['num_decoder_layers'],
-            dim_feedforward=config['dim_feedforward'],
-            dropout=config['dropout']
+            vocab_size=midi_vocab_size,
+            d_model=embed_dim,
+            nhead=nhead,
+            num_layers=num_decoder_layers,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout
         )
-
-        # 3. Parámetros comunes
-        self.d_model = config['d_model']
-        self.vocab_size = config['vocab_size']
-
-    def encode(self, audio):
-        """
-        Paso 1: Procesar el audio para generar la memoria latente.
         
-        """
-        return self.encoder(audio)
-    
-    def decode(self, tgt, memory):
-        """
-        Paso 2: Generar logits a partir de la memoria del encoder y los tokens previos.
-        
-        """
-        return self.decoder(tgt, memory)
-    
-    def forward(self, audio, tgt):
-        """
-        Flujo de entrenamiento completo estándar (Teacher Forcing).
 
-        Args:
-            audio: Espectrograma Mel [Batch, 1, n_mels, Time]
-            tgt: Secuencia de tokens objetivo [Batch, Seq_Len] (entrada del decoder)
+    def forward(self, src_audio, tgt_midi, tgt_mask=None, tgt_padding_mask=None):
+        # 1. Codificar el src_audio
+        memory = self.encoder(src_audio)  # [Batch, Audio_Len, d_model]
 
-        Returns:
-            logits: Probabilidades de cada token [Batch, Seq_Len, vocab_size]
-        """
-        # 1. Codificar el audio
-        memory = self.encode(audio)  # [Batch, Audio_Len, d_model]
-
-        # 2. Decodificar con la memoria y los tokens objetivo
-        logits = self.decode(tgt, memory)  # [Batch, Seq_Len, vocab_size]
+        # 2. Preparar MIDI
+        logits = self.decoder(
+            tgt=tgt_midi,
+            memory=memory,
+            tgt_padding_mask=tgt_padding_mask
+        )
 
         return logits
     
     @torch.no_grad()
-    def generate(self, audio, start_token, max_len=1000, end_token=None):
+    def generate(self, src_audio, start_token, max_len=1000, end_token=None):
         """
         Inferencia (Greedy Decoding)
-        Se usa cuando el modelo ya está entrenado y queremos transcribir un audio nuevo
+        Se usa cuando el modelo ya está entrenado y queremos transcribir un src_audio nuevo
         """
         self.eval() # Modo evaluación
-        device = audio.device
+        device = src_audio.device
 
-        # 1. Codificar el audio
-        memory = self.encode(audio)  # [1, Audio_Len, d_model]
+        # 1. Codificar el src_audio
+        memory = self.encode(src_audio)  # [1, Audio_Len, d_model]
 
         # 2. Empezar la frase con el token de inicio (start_token)
         # Iniciamos con batch size 1 conteniendo el token de inicio
