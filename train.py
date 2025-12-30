@@ -1,3 +1,7 @@
+import os
+# Configuración para evitar fragmentación de memoria en la GPU
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -125,6 +129,7 @@ def train():
                 
                 # AHORA LIMPIAMOS para el siguiente grupo de acumulación
                 optimizer.zero_grad()
+                torch.cuda.empty_cache()
 
             current_loss = loss.item() * GRAD_ACCUMULATION_STEPS
             total_loss += current_loss

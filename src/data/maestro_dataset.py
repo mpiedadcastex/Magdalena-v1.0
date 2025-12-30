@@ -9,8 +9,8 @@ from .audio_proc import AudioProcessor
 from .midi_proc import MidiProcessor
 
 # --- MEDIDA DE EMERGENCIA: CORTE DURO ---
-MAX_AUDIO_FRAMES = 8000  # Límite de seguridad para Audio (~15 min)
-MAX_MIDI_TOKENS = 3000
+MAX_AUDIO_FRAMES = 4096  # Límite de seguridad para Audio (~15 min)
+MAX_MIDI_TOKENS = 1500
 
 class MaestroDataset(Dataset):
     def __init__(self, csv_file, root_dir, audio_processor, midi_processor, split='train'):
