@@ -151,87 +151,83 @@ class MaskPredictor(nn.Module):
         cfg = self.cfg.SPAR
 
         B, H, N, C = q.shape
-        # --- FIX AUDIO 1: Eliminar la aserción de tamaño fijo ---
-        #assert self.num_tokens == N
-
-        # Si el audio es más largo de lo esperado, cortamos para evitar crash (seguridad)
+        
+        # --- FIX AUDIO 1: Seguridad ---
         if N > self.num_tokens:
-             raise ValueError(f"El audio (Len={N}) es más largo que el max_seq_len definido ({self.num_tokens}). Aumenta max_seq_len en el Encoder.")
+             raise ValueError(f"El audio (Len={N}) es más largo que el max_seq_len definido ({self.num_tokens}).")
         
         q, k = self.proj_c_q(q), self.proj_c_k(k)  # [B, H, N, c]
         if token_mask is not None:
-            # token_mask: [B, N-1]
             q[..., 1:, :] = q[..., 1:, :].masked_fill(~token_mask[:, None, :, None], 0.)
             k[..., 1:, :] = k[..., 1:, :].masked_fill(~token_mask[:, None, :, None], 0.)
 
         k = k.permute(0, 1, 3, 2)  # [B, H, c, N]
 
-        # --- FIX AUDIO 2: Slicing dinámico de la proyección ---
-        # La matriz proj_n tiene tamaño [Max_Len, Reduced_Len].
-        # Como nuestro audio actual N es menor que Max_Len, usamos solo las primeras N filas.
-        # k: [..., N] @ proj_n: [N, Reduced]
-        proj_n_sliced = self.proj_n[:N, :] # Tomamos solo lo necesario
+        # --- FIX AUDIO 2: Slicing dinámico ---
+        proj_n_sliced = self.proj_n[:N, :] 
         k = k @ proj_n_sliced  # [B, H, c, k]
 
-        # TODO: should call this only once during inference.
+        # --- FIX AUDIO 3: Slicing basis ---
         if self.training and self.cfg.LOSS.USE_ATTN_RECON:
-            # --- FIX AUDIO 3 ---
             basis = self.proj_back_n[:N, :].permute(1, 0)
         else:
-            # --- FIX AUDIO 3 ---
-            # Igual aquí, cortamos proj_back_n al tamaño N actual
             basis = self.proj_back_n[:N, :].permute(1, 0)
-            
-            # basis[basis.abs() <= cfg.BASIS_THRESHOLD] = 0.
-            # For Linear attention visualization
             basis = self.basis_threshold(basis.abs())
 
-        # Compute low-rank approximation of the attention matrix
-        # q: [B, H, N, C]   k: [B, H, c, K]
+        # Compute low-rank approximation
         cheap_attn = (q @ k) * self.scale  # [B, H, N, K]
         cheap_attn = cheap_attn[..., 1:, :]  # [B, H, N-1, K] remove cls token
-        basis_coef = cheap_attn.softmax(dim=-1)  # [B, H, N-1, K] coef is naturally sparse
+        basis_coef = cheap_attn.softmax(dim=-1)
+        
         if self.training and self.cfg.LOSS.USE_ATTN_RECON:
-            approx_attn = basis_coef @ basis  # [B, H, N-1, N]
+            approx_attn = basis_coef @ basis
         else:
             if cfg.BASIS_COEF.USE_TOPK:
                 basis_coef_topk, basis_coef_topk_indices = basis_coef.topk(cfg.BASIS_COEF.TOPK, sorted=False)
                 basis_coef = torch.zeros_like(basis_coef, device=basis_coef.device)
                 basis_coef.scatter_(-1, basis_coef_topk_indices, basis_coef_topk)
             elif cfg.BASIS_COEF.THRESHOLD > 0:
-                # basis_coef[basis_coef <= cfg.BASIS_COEF.THRESHOLD] = 0.
                 basis_coef = self.basis_coef_threshold(basis_coef)
-            approx_attn = basis_coef @ basis  # [B, H, N-1, N]
+            approx_attn = basis_coef @ basis
 
-        # Zero out attention connectivity columns corresponding to inactive tokens
-        attn_score = approx_attn.clone()  # [B, H, N-1, N]
+        # Zero out attention connectivity columns
+        attn_score = approx_attn.clone()
         if token_mask is not None:
-            attn_score[..., 1:].masked_fill_(~token_mask[:, None, None, :], float('-inf'))  # [B, H, N-1, N]
+            attn_score[..., 1:].masked_fill_(~token_mask[:, None, None, :], float('-inf'))
 
-        # Generate columns of instance dependent sparse attention connectivity pattern
+        # --- GENERACIÓN DE LA MÁSCARA (LÓGICA CORREGIDA) ---
         if cfg.ATTN_SCORE.USE_TOPK:
             # Top-k attention connectivity
-            topk_cont_indices = torch.topk(attn_score, self.attn_budget, sorted=False)[1]  # [B, H, N-1, num_cont]
+            # --- FIX CRÍTICO: AJUSTE DINÁMICO DE K ---
+            real_k = min(self.attn_budget, N) # Aseguramos que k <= N
+            
+            topk_cont_indices = torch.topk(attn_score, int(real_k), sorted=False)[1]
+            
             attn_mask = torch.zeros_like(attn_score, dtype=attn_score.dtype, device=attn_score.device)
-            attn_mask.scatter_(-1, topk_cont_indices, True)  # [B, H, N-1, N]
+            attn_mask.scatter_(-1, topk_cont_indices, True)
+            
         elif cfg.ATTN_SCORE.THRESHOLD > 0:
             # Threshold attention connectivity
             attn_mask = torch.where(attn_score <= cfg.ATTN_SCORE.THRESHOLD, 0., 1.)
         else:
             raise NotImplementedError
 
+        # --- CÓDIGO COMÚN (FUERA DEL IF/ELIF) ---
+        # ¡IMPORTANTE! Esto debe estar alineado a la izquierda, fuera del bloque if/elif
+        
         # Zero out attention connectivity rows corresponding to inactive tokens
         if token_mask is not None and cfg.PRUNE_ATTN_MATRIX_ROW:
-            attn_mask *= token_mask[:, None, :, None]  # [B, H, N-1, N]
+            attn_mask *= token_mask[:, None, :, None]
 
         # Add cls token back to attn mask
         cls_mask = torch.ones(B, H, 1, N, dtype=attn_mask.dtype, device=attn_mask.device)
         attn_mask = torch.cat([cls_mask, attn_mask], dim=2)  # [B, H, N, N]
-        attn_mask.detach_()  # TODO: No gradient for attn_mask
+        attn_mask.detach_()
 
         out_dict['basis_coef'] = basis_coef
         out_dict['approx_attn'] = approx_attn
         out_dict['attn_mask'] = attn_mask
+        
         if not self.training:
             if cfg.OUT_BASIS_SPARSITY:
                 out_dict['basis_sparsity'] = compute_sparsity(basis)
@@ -239,6 +235,7 @@ class MaskPredictor(nn.Module):
                 out_dict['basis_coef_sparsity'] = compute_sparsity(basis_coef)
             if cfg.OUT_ATTN_MASK_SPARSITY:
                 out_dict['attn_mask_sparsity'] = compute_sparsity(attn_mask)
+                
         return out_dict
 
 
