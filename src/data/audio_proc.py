@@ -38,7 +38,7 @@ class AudioProcessor:
         """
         # Si el audio no estaba cargado se carga
         if isinstance(audio, str):
-            audio, _ = self.load_audio(audio)
+            audio = self.load_audio(audio)
 
         # Cálculo de espectrograma (escala lineal)
         mel_spectrogram = librosa.feature.melspectrogram(
