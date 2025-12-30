@@ -27,7 +27,7 @@ class PianoTranscriptionModel(nn.Module):
             embed_dim=embed_dim,
             depth=num_encoder_layers,
             num_heads=nhead,
-            reduce_n_factor=16,     # Factor alto para ahorrar memoria
+            reduce_n_factor=32,     # Factor alto para ahorrar memoria
             attn_keep_rate=0.25,
             drop_rate=dropout,
             cfg=encoder_cfg         # Aquí es donde le pasamos la configuracion
