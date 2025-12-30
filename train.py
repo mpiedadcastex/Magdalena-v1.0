@@ -60,12 +60,26 @@ def train():
     # ignore_index=0 es CRÍTICO para que no aprenda del padding
     criterion = nn.CrossEntropyLoss(ignore_index=0) 
 
+    # --- SISTEMA DE REANUDACIÓN ---
+    START_EPOCH = 0
+    checkpoint_path = "checkpoint_epoch_4.pt"
+
+    if os.path.exists(checkpoint_path):
+        print(f"--> Cargando checkpoint: {checkpoint_path}")
+        # Cargar pesos
+        model.load_state_dict(torch.load(checkpoint_path))
+        # Ajustar época de inicio
+        START_EPOCH = 4 # Si cargamos la 4, empezamos en la 5 (índice 4 en range)
+        print(f"--> Reanudando entrenamiento desde la Epoch {START_EPOCH + 1}")
+    else:
+        print("--> No se encontró checkpoint, empezando desde cero.")
+
     # --- BUCLE DE ENTRENAMIENTO ---
     optimizer.zero_grad()
 
     scaler = torch.amp.GradScaler('cuda')
 
-    for epoch in range(EPOCHS):
+    for epoch in range(START_EPOCH, EPOCHS):
         model.train()
         total_loss = 0
         
