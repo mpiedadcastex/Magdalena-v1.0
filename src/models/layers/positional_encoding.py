@@ -25,5 +25,19 @@ class PositionalEncoding(nn.Module):
         x: Tensor de entrada [Batch, Secuencia, Features]
         """
         # Sumamos la codificación posicional hasta la longitud actual de x
-        x = x + self.pe[:x.size(0)]
+        # Adaptamos el slicing según la forma de entrada
+        # Si tu modelo usa batch_first=True (como configuramos en el Transformer),
+        # x es (Batch, Seq, Dim).
+        # El PE es (Max_Seq, 1, Dim). Necesitamos permutar PE o adaptar la suma.
+        
+        # Opción A: Si x es (Batch, Seq, Dim) -> Lo más común en tu caso
+        if x.size(1) == self.pe.size(0): # Si dim 1 es secuencia
+             # pe es (Seq, 1, Dim) -> (1, Seq, Dim) para sumar
+             x = x + self.pe[:x.size(1), :].permute(1, 0, 2)
+        elif x.size(0) == self.pe.size(0): # Si dim 0 es secuencia
+             x = x + self.pe[:x.size(0), :]
+        else:
+             # Fallback: asumimos batch_first=True y hacemos slicing en dim 0 del PE
+             # y lo rotamos para que encaje con (Batch, Seq, Dim)
+             x = x + self.pe[:x.size(1), :].transpose(0, 1)
         return self.dropout(x)
