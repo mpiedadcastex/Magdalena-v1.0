@@ -1,6 +1,6 @@
 import os
 # Configuración para evitar fragmentación de memoria en la GPU
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
 
 import torch
 import torch.nn as nn

@@ -30,12 +30,12 @@ class MidiDecoder(nn.Module):
         self.d_model = d_model
 
 
-    def generate_square_subsequent_mask(self, sz):
+    def generate_square_subsequent_mask(self, sz, device):
         """
         Genera una máscara triangular superior con -inf.
         Asegura que la posición 'i' solo pueda atender a posiciones de 0 a i.
         """
-        mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
+        mask = (torch.triu(torch.ones(sz, sz, device=device)) == 1).transpose(0, 1)
         mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
         return mask
     
