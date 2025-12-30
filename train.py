@@ -11,7 +11,8 @@ from src.models.transformer import PianoTranscriptionModel
 from utils import get_model_config
 
 # --- HIPERPARÁMETROS ---
-BATCH_SIZE = 2         # Pequeño por la VRAM de Colab
+BATCH_SIZE = 1         # Pequeño por la VRAM de Colab (con 2 ha explotado)
+GRAD_ACCUMULATION_STEPS = 4  # Simulamos batch de 4
 LEARNING_RATE = 1e-4   # Estándar para Transformers
 EPOCHS = 10
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -55,13 +56,15 @@ def train():
     criterion = nn.CrossEntropyLoss(ignore_index=0) 
 
     # --- BUCLE DE ENTRENAMIENTO ---
+    optimizer.zero_grad()
+
     for epoch in range(EPOCHS):
         model.train()
         total_loss = 0
         
         loop = tqdm(train_loader, desc=f"Epoch {epoch+1}/{EPOCHS}")
         
-        for batch_audio, batch_midi in loop:
+        for i, (batch_audio, batch_midi) in enumerate(loop):
             # batch_audio: (B, 229, Time)
             # batch_midi: (B, Seq_Len)
             
@@ -83,7 +86,7 @@ def train():
             tgt_padding_mask = (decoder_input == 0).to(DEVICE)
 
             # Forward
-            optimizer.zero_grad()
+            # optimizer.zero_grad() -> Lo borramos porque vamos a arrastrar el gradiente entre batches
             
             logits = model(
                 src_audio=batch_audio, 
@@ -99,16 +102,27 @@ def train():
                 targets.reshape(-1)
             )
 
+            # Normalizamos la pérdida para mantener la escala correcta
+            loss = loss / GRAD_ACCUMULATION_STEPS
+
             # Backward
             loss.backward()
             
-            # Gradient Clipping (Evita explosión de gradientes)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            
-            optimizer.step()
+            # Si ya hemos dado el nº de pasos establecido
+            if (i + 1) % GRAD_ACCUMULATION_STEPS == 0:
+                
+                # Gradient Clipping
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                
+                # Actualizar pesos
+                optimizer.step()
+                
+                # AHORA LIMPIAMOS para el siguiente grupo de acumulación
+                optimizer.zero_grad()
 
-            total_loss += loss.item()
-            loop.set_postfix(loss=loss.item())
+            current_loss = loss.item() * GRAD_ACCUMULATION_STEPS
+            total_loss += current_loss
+            loop.set_postfix(loss=current_loss)
 
         avg_loss = total_loss / len(train_loader)
         print(f"Fin Epoch {epoch+1} - Loss Promedio: {avg_loss:.4f}")
