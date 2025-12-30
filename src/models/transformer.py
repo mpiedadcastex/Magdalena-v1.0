@@ -7,7 +7,7 @@ from .decoder import MidiDecoder
 class PianoTranscriptionModel(nn.Module):
     def __init__(
         self, 
-        midi_vocab_size,
+        midi_processor,
         encoder_cfg,
         embed_dim=512,
         nhead=8,
@@ -35,7 +35,7 @@ class PianoTranscriptionModel(nn.Module):
 
         # 2. DECODER
         self.decoder = MidiDecoder(
-            vocab_size=midi_vocab_size,
+            midi_processor=midi_processor,
             d_model=embed_dim,
             nhead=nhead,
             num_layers=num_decoder_layers,

@@ -2,14 +2,17 @@ import torch
 import torch.nn as nn
 import math
 
+from src.data.midi_proc import MidiProcessor
 from .layers.positional_encoding import PositionalEncoding
 
 class MidiDecoder(nn.Module):
-    def __init__(self, vocab_size, d_model=512, nhead=8, num_layers=6, dim_feedforward=2048, dropout=0.1):
+    def __init__(self, midi_processor, d_model=512, nhead=8, num_layers=6, dim_feedforward=2048, dropout=0.1):
         super().__init__()
+
+        vocab_size =midi_processor.vocab_size
         
         # 1. Embedding de Entrada
-        self.embedding = nn.Embedding(vocab_size, d_model)
+        self.embedding = nn.Embedding(vocab_size, d_model, padding_idx=0)
 
         # 2. Positional Encoding
         self.pos_encoder = PositionalEncoding(d_model, dropout=dropout)

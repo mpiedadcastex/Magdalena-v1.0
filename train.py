@@ -46,7 +46,7 @@ def train():
     vocab_size = mp.vocab_size 
     
     model = PianoTranscriptionModel(
-        midi_vocab_size=vocab_size,
+        midi_processor=mp,
         encoder_cfg=cfg,
         embed_dim=256,       # 256 para probar, sube a 512 si tienes VRAM
         num_encoder_layers=4,
