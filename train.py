@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+
 from tqdm import tqdm # Barra de progreso
 
 # Tus módulos
@@ -58,6 +59,8 @@ def train():
     # --- BUCLE DE ENTRENAMIENTO ---
     optimizer.zero_grad()
 
+    scaler = torch.amp.GradScaler('cuda')
+
     for epoch in range(EPOCHS):
         model.train()
         total_loss = 0
@@ -88,34 +91,37 @@ def train():
             # Forward
             # optimizer.zero_grad() -> Lo borramos porque vamos a arrastrar el gradiente entre batches
             
-            logits = model(
-                src_audio=batch_audio, 
-                tgt_midi=decoder_input,
-                tgt_padding_mask=tgt_padding_mask
-            )
-            # Logits: (B, Seq_Len-1, Vocab)
+            with torch.amp.autocast('cuda'):
+                logits = model(
+                    src_audio=batch_audio, 
+                    tgt_midi=decoder_input,
+                    tgt_padding_mask=tgt_padding_mask
+                )
+                # Logits: (B, Seq_Len-1, Vocab)
 
-            # Flatten para CrossEntropy
-            # Reshape a (Batch * Seq_Len, Vocab) vs (Batch * Seq_Len)
-            loss = criterion(
-                logits.reshape(-1, vocab_size), 
-                targets.reshape(-1)
-            )
+                # Flatten para CrossEntropy
+                # Reshape a (Batch * Seq_Len, Vocab) vs (Batch * Seq_Len)
+                loss = criterion(
+                    logits.reshape(-1, vocab_size), 
+                    targets.reshape(-1)
+                )
 
-            # Normalizamos la pérdida para mantener la escala correcta
-            loss = loss / GRAD_ACCUMULATION_STEPS
+                # Normalizamos la pérdida para mantener la escala correcta
+                loss = loss / GRAD_ACCUMULATION_STEPS
 
             # Backward
-            loss.backward()
+            scaler.scale(loss).backward()
             
             # Si ya hemos dado el nº de pasos establecido
             if (i + 1) % GRAD_ACCUMULATION_STEPS == 0:
                 
                 # Gradient Clipping
+                scaler.unscale_(optimizer)
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                 
-                # Actualizar pesos
-                optimizer.step()
+                # Actualizar pesos con scaler
+                scaler.step(optimizer)
+                scaler.update()
                 
                 # AHORA LIMPIAMOS para el siguiente grupo de acumulación
                 optimizer.zero_grad()
