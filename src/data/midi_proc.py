@@ -133,7 +133,7 @@ class MidiProcessor:
             # Calculamos el índice de pitch, en un rango de 0 a 87, 
             pitch_index = event['pitch'] - self.MIN_PITCH  
             
-            # Usamos el índice para, dependiendo el tipo de evento,
+            # Usamos el índice para, dependiendo del tipo de evento,
             # calcular el token correspondiente
             if event['type'] == 'on':
                 # Para evento NOTE_ON 

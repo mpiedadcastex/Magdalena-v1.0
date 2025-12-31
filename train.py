@@ -42,7 +42,6 @@ def train():
     print("Inicializando modelo...")
     cfg = get_model_config()
     
-    # IMPORTANTE: Obtener vocab_size de tu encoder o ponerlo a mano
     vocab_size = mp.vocab_size 
     
     model = PianoTranscriptionModel(
@@ -154,6 +153,7 @@ def train():
         
         # Guardar checkpoint cada época
         torch.save(model.state_dict(), f"checkpoint_epoch_{epoch+1}.pt")
+        torch.save(optimizer.state_dict())
 
 if __name__ == "__main__":
     train()
