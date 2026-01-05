@@ -8,6 +8,9 @@ import pandas as pd
 from .audio_proc import AudioProcessor
 from .midi_proc import MidiProcessor
 
+# --- MEDIDA DE EMERGENCIA: CORTE DURO ---
+MAX_AUDIO_FRAMES = 4096  # Límite de seguridad para Audio (~15 min)
+MAX_MIDI_TOKENS = 1500
 
 class MaestroDataset(Dataset):
     def __init__(self, csv_file, root_dir, audio_processor, midi_processor, split='train'):
@@ -49,6 +52,14 @@ class MaestroDataset(Dataset):
         # Output -> tokens
         midi_tokens = self.midi_processor.process_midi(midi_path)
 
+        # Corte de seguridad a ver si se puede entrenar
+        # AUDIO
+        if (spectrogram.shape[1] > MAX_AUDIO_FRAMES):
+            spectrogram = spectrogram[:, :MAX_AUDIO_FRAMES]
+        
+        if (len(midi_tokens) > MAX_MIDI_TOKENS):
+            midi_tokens = midi_tokens[:MAX_MIDI_TOKENS]
+        
         # Convertimos ambas salidas a tensores
         # Audio -> Float    Midi -> Long
         spectrogram_tensor = torch.from_numpy(spectrogram).float()
@@ -69,10 +80,10 @@ def collate_fn(batch):
     """PADDING DE AUDIO"""
     # Antes de hacer el padding debemos poner el tiempo en la primera posicion
     # ya que la funcion de padding trabaja en la primera dimension
-    spectrograms = [s.permute(1, 0) for s in spectrograms]
+    spectrograms_permuted = [s.permute(1, 0) for s in spectrograms]
 
     # Añadimos la dimension de batch y establecemos como valor de relleno el 0, la falta de informacion
-    spectrograms_padded = pad_sequence(spectrograms, batch_first=True, padding_value=0.0)
+    spectrograms_padded = pad_sequence(spectrograms_permuted, batch_first=True, padding_value=0.0)
 
     # Volvemos a la forma (Batch, 229, time)
     spectrograms_padded = spectrograms_padded.permute(0, 2, 1)
@@ -83,7 +94,7 @@ def collate_fn(batch):
     return spectrograms_padded, midis_padded
     
 
-def get_dataloaders(csv_path, root_dir, audio_processor, midi_processor, batch_size=4):
+def get_dataloaders(csv_path, root_dir, audio_processor, midi_processor, batch_size=1):
     """
     Función para crear los DataLoaders de Train y Validation pasando los procesadores configurados
     """
