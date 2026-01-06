@@ -25,6 +25,7 @@ class MidiDecoder(nn.Module):
             dropout=dropout,
             batch_first=True
         )
+        
         self.transformer_decoder = nn.TransformerDecoder(decoder_layer, num_layers=num_layers)
 
         # 4. Capa de salida

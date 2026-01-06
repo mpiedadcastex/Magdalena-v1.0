@@ -1,14 +1,18 @@
 import torch
 import torch.nn as nn
-from .sparsifiner_encoder import AudioSparsifinerEncoder
-from .layers.positional_encoding import PositionalEncoding
-from .decoder import MidiDecoder
+from types import SimpleNamespace
+
+from src.data.midi_proc import MidiProcessor
+
+from .layers.sparsifiner_encoder import AudioSparsifinerEncoder
+from .layers.decoder import MidiDecoder
+
 
 class PianoTranscriptionModel(nn.Module):
     def __init__(
         self, 
-        midi_processor,
-        encoder_cfg,
+        midi_processor: MidiProcessor,
+        encoder_cfg: SimpleNamespace,
         embed_dim=512,
         nhead=8,
         num_encoder_layers=6,
