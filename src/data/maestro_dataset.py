@@ -13,7 +13,7 @@ MAX_AUDIO_FRAMES = 4096  # Límite de seguridad para Audio (~15 min)
 MAX_MIDI_TOKENS = 1500
 
 class MaestroDataset(Dataset):
-    def __init__(self, csv_file, root_dir, audio_processor, midi_processor, split='train'):
+    def __init__(self, csv_file, root_dir, audio_processor: AudioProcessor, midi_processor: MidiProcessor, split='train'):
         """
         Dataset para el conjunto MAESTRO.
         
@@ -89,6 +89,7 @@ def collate_fn(batch):
     spectrograms_padded = spectrograms_padded.permute(0, 2, 1)
 
     """PADDING DE MIDI"""
+    # Añadimos padding si es necesario y establecemos el 0 como valor de relleno
     midis_padded = pad_sequence(midis, batch_first=True, padding_value=0)
 
     return spectrograms_padded, midis_padded

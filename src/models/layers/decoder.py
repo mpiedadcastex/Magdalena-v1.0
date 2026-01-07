@@ -3,10 +3,10 @@ import torch.nn as nn
 import math
 
 from src.data.midi_proc import MidiProcessor
-from .layers.positional_encoding import PositionalEncoding
+from .positional_encoding import PositionalEncoding
 
 class MidiDecoder(nn.Module):
-    def __init__(self, midi_processor, d_model=512, nhead=8, num_layers=6, dim_feedforward=2048, dropout=0.1):
+    def __init__(self, midi_processor: MidiProcessor, d_model=512, nhead=8, num_layers=6, dim_feedforward=2048, dropout=0.1):
         super().__init__()
 
         vocab_size =midi_processor.vocab_size
@@ -25,6 +25,7 @@ class MidiDecoder(nn.Module):
             dropout=dropout,
             batch_first=True
         )
+        
         self.transformer_decoder = nn.TransformerDecoder(decoder_layer, num_layers=num_layers)
 
         # 4. Capa de salida

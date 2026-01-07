@@ -1,14 +1,18 @@
 import torch
 import torch.nn as nn
-from .sparsifiner_encoder import AudioSparsifinerEncoder
-from .layers.positional_encoding import PositionalEncoding
-from .decoder import MidiDecoder
+from types import SimpleNamespace
+
+from src.data.midi_proc import MidiProcessor
+
+from .layers.sparsifiner_encoder import AudioSparsifinerEncoder
+from .layers.decoder import MidiDecoder
+
 
 class PianoTranscriptionModel(nn.Module):
     def __init__(
         self, 
-        midi_processor,
-        encoder_cfg,
+        midi_processor: MidiProcessor,
+        encoder_cfg: SimpleNamespace,
         embed_dim=512,
         nhead=8,
         num_encoder_layers=6,
@@ -67,7 +71,7 @@ class PianoTranscriptionModel(nn.Module):
         device = src_audio.device
 
         # 1. Codificar el src_audio
-        memory = self.encode(src_audio)  # [1, Audio_Len, d_model]
+        memory = self.encoder(src_audio)  # [1, Audio_Len, d_model]
 
         # 2. Empezar la frase con el token de inicio (start_token)
         # Iniciamos con batch size 1 conteniendo el token de inicio
@@ -80,7 +84,7 @@ class PianoTranscriptionModel(nn.Module):
         # 3. Bucle de generación paso a paso
         for _ in range(max_len):
             # Obetener prediccion para el siguiente token
-            logits = self.decode(current_tokens, memory)  # [1, Seq_Len, vocab_size]
+            logits = self.decoder(current_tokens, memory)  # [1, Seq_Len, vocab_size]
 
             # Miramos solo el último paso
             last_token_logits = logits[:, -1, :]  # [1, vocab_size]
