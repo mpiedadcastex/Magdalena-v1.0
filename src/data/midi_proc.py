@@ -23,7 +23,11 @@ class MidiProcessor:
         self.VELOCITY_BINS = 32  # Niveles de velocidad 
 
         # 2. Rangos de índices de tokens
-        # Note-On -> 1 a 88     Lo establecemos desde 1 y no desde 0 por motivos de intuitividad
+
+        # Padding -> 0
+        self.token_pad = 0
+
+        # Note-On ->  Lo establecemos desde 1 y no desde 0 por motivos de intuitividad
         # Rango: 1 a 88
         self.idx_note_on = 1
 
@@ -39,11 +43,16 @@ class MidiProcessor:
         # Rango: 277 a 308 
         self.idx_vel = self.idx_time + self.TIME_BINS  # 177 + 100 = 277
         
-        # Tamaño total del vocabulario
-        self.vocab_size = self.idx_vel + self.VELOCITY_BINS
-        #print(f"Procesador MIDI inicializado con vocabulario de tamaño: {self.vocab_size}")
+        # Comienzo (Start of Sequence) y Fin (End of Sequence) de la secuencia 
+        self.token_sos = self.idx_vel + self.VELOCITY_BINS    # 277 + 32 = 309
+        self.token_eos = self.token_sos + 1                         # 309 + 1 = 310
 
-    def process_midi(self, midi):
+        # Tamaño total del vocabulario
+        self.vocab_size = self.token_eos +1   # 310 + 1 = 311
+        
+        
+
+    def encode_midi(self, midi):
         """
         Convierte un archivo MIDI en una secuencia de tokens basada en los eventos creados.
         
@@ -52,7 +61,7 @@ class MidiProcessor:
             midi_data = pretty_midi.PrettyMIDI(midi)
         except Exception as e:
             print(f"Error al cargar MIDI: {e}")
-            return []
+            return np.array([self.token_sos, self.token_eos], dtype=np.int32)
         
         # 1. Extraemos todas las notas
         notes = []
@@ -100,8 +109,9 @@ class MidiProcessor:
 
 ###############################################################################################################
 
-        # 4. Estapa de CONVERSIÓN de eventos A TOKENS
-        tokens = []
+        # 4. Etapa de CONVERSIÓN de eventos A TOKENS
+        tokens = [self.token_sos]
+
         current_time = 0.0
 
         for event in events:
@@ -125,13 +135,13 @@ class MidiProcessor:
             # Gestion de la velocity -> SOLO para Note On
             if event['type'] == 'on':
                 # Mapear la velocidad a uno de los VELOCITY_BINS
-                # Nota: Dividimos por 128 ya que es el numero de bins que establece MIDI 
-                # para codificar la velocidad (le asigna 7 bytes = 2^7 = 128 bins)
+                # Nota: Dividimos por 128 ya que es el número de bins que establece MIDI 
+                # para codificar la velocidad 
                 vel_index = int((event['velocity'] / 128) * (self.VELOCITY_BINS))
                 tokens.append(self.idx_vel + vel_index)
 
-            # Calculamos el índice de pitch, en un rango de 0 a 87, 
-            pitch_index = event['pitch'] - self.MIN_PITCH  
+            # Calculamos el índice de pitch, en un rango de 1 a 88 
+            pitch_index = event['pitch'] - self.MIN_PITCH 
             
             # Usamos el índice para, dependiendo del tipo de evento,
             # calcular el token correspondiente
@@ -140,5 +150,100 @@ class MidiProcessor:
                 tokens.append(self.idx_note_on + pitch_index)
             else:
                 tokens.append(self.idx_note_off + pitch_index)
+
+        tokens.append(self.token_eos)
     
         return np.array(tokens, dtype=np.int32)
+    
+
+
+    def decode_midi(self, tokens, output_path=None):
+        """
+        Convierte los tokens a MIDI (ignorando PAD, SOS y EOS)
+        """
+        midi = pretty_midi.PrettyMIDI()
+        piano = pretty_midi.Instrument(program=0)
+
+        current_time = 0.0
+        current_velocity = 0
+
+        # Diccionario para el rastreo de las notas activas
+        # Clave: Pitch -> Valor:(start_time, velocity)
+        active_notes = {}
+
+        for token in tokens:
+            token = int(token)
+
+            # Tokens especiales: PAD, SOS Y EOS
+            if token == self.sos or token == self.eos or token == self.token_pad:
+                continue
+            
+            # INICIO DE NOTA (NOTE ON)
+            elif self.idx_note_on <= token < self.idx_note_off:
+                pitch_index = token - self.idx_note_on
+                pitch = pitch_index + self.MIN_PITCH
+
+                # IMPORTANTE: si ya estaba la misma nota sonando, se cierra forzosamente 
+                # antes de comenzar la nueva (no se puede tocar la misma tecla 2 veces al mismo tiempo)
+                if pitch in active_notes:
+                    start, vel = active_notes[pitch]
+
+                    # Creamos la nota MIDI y la añadimos a la secuencia
+                    note = pretty_midi.Note(velocity=vel, pitch=pitch, start=start, end=current_time)
+                    piano.notes.append(note)
+
+                # Añadimos la nueva nota al diccionario
+                active_notes[pitch] = (current_time, current_velocity)
+
+            # FINAL DE NOTA (NOTE OFF)
+            elif self.idx_note_off <= token < self.idx_time:
+                pitch_index = token - self.idx_note_off
+                pitch = self.MIN_PITCH + pitch_index
+
+                # Comprobamos que la nota estuviese sonando 
+                if pitch in active_notes:
+                    start, vel = active_notes[pitch]
+
+                    # Creamos la nota MIDI y la añadimos a la secuencia
+                    note = pretty_midi.Note(pitch=pitch, start=start, end=current_time)
+                    piano.notes.append(note)
+
+                    # La quitamos del diccionario de notas activas
+                    del active_notes[pitch]
+
+            # AVANCE DE TIEMPO (TIME SHIFT)
+            elif self.idx_time <= token < self.idx_vel:
+                time_index = token - self.idx_time
+
+                # Calculamos los pasos teniendo en cuenta que time_index = 0 equivale a 1 step
+                steps = time_index + 1
+                time_shift = steps * self.TIME_STEP
+                current_time += time_shift
+
+            # DINÁMICA (VELOCITY)
+            elif self.idx_vel <= token < (self.idx_vel + self.VELOCITY_BINS):
+                vel_index = token - self.idx_vel
+                # Deshacemos la normalizacion para volver al rango original de 0-127
+                # Formula inversa: (index / bins) * 128
+                value = int((vel_index / self.VELOCITY_BINS) * 128)
+                # Clamp por seguridad para matenerlo en rango MIDI válido
+                current_velocity = max(1, min(127, value))
+
+        # -- LIMPIEZA FINAL --
+        # Si al termianr la secuencia quedaron notas abiertas las cerramos
+        for pitch, (start, vel) in active_notes.items():
+            note = pretty_midi.Note(velocity=vel, pitch=pitch, start=start, end=current_time)
+            piano.notes.append(note)
+
+        # Añadimos el instrumento al objeto MIDI
+        midi.instruments.append(piano)
+
+        # Guardar archivo si se especifica ruta
+        if output_path:
+            try:
+                midi.write(output_path)
+                print(f"MIDI guardado exitosamente en : {output_path}")
+            except Exception as e:
+                print(f"Error al guardar MIDI: {e}")
+
+        return midi
