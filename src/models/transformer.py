@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from src.data.midi_proc import MidiProcessor
 
-from .layers.sparsifiner_encoderr import AudioSparsifinerEncoder
+from .layers.sparsifiner_encoder import AudioSparsifinerEncoder
 from .layers.decoder import MidiDecoder
 
 
