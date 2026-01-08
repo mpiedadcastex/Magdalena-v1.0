@@ -1,5 +1,5 @@
 import torch
-from models.encoder import AudioEncoder
+from src.models.encoder import AudioEncoder
 
 # Simular un batch de espectrogramas
 # Batch=2, Canal=1, Frecuencias=229, Tiempo=1000 frames

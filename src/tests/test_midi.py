@@ -1,4 +1,4 @@
-from data.midi_proc import MidiProcessor
+from src.data.midi_proc import MidiProcessor
 import numpy as np
 
 # Inicializar
