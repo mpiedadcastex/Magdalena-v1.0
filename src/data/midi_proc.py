@@ -50,7 +50,11 @@ class MidiProcessor:
         # Tamaño total del vocabulario
         self.vocab_size = self.token_eos +1   # 310 + 1 = 311
         
-        
+        self.token_to_id = {
+            '<pad>': self.token_pad,
+            '<sos>': self.token_sos,
+            '<eos>': self.token_eos
+        }
 
     def encode_midi(self, midi):
         """
@@ -175,7 +179,7 @@ class MidiProcessor:
             token = int(token)
 
             # Tokens especiales: PAD, SOS Y EOS
-            if token == self.sos or token == self.eos or token == self.token_pad:
+            if token == self.token_sos or token == self.token_eos or token == self.token_pad:
                 continue
             
             # INICIO DE NOTA (NOTE ON)

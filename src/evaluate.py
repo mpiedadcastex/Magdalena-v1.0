@@ -108,3 +108,142 @@ def calculate_metrics(ref_midi_path, est_midi_path):
     )
 
     return onset_f1, on_off_f1, vel_f1
+
+
+def predict_greedy(model, audio_tensor, midi_processor:MidiProcessor, max_len=2048):
+    """
+    Generación nota a nota (Greedy)
+    """
+    model.eval()
+
+    # Establecemos los tokens especiales de inicio y fin con los atributos del procesador midi
+    sos = midi_processor.token_sos
+    eos = midi_processor.token_eos
+
+    # Iniciamos la secuencia con <SOS>
+    generated_sequence = torch.tensor([[sos]], dtype=torch.long).to(DEVICE)
+
+    with torch.no_grad():
+        for _ in range(max_len):
+            # Forward pass
+            # Ponemos tgt_padding_mask a None ya que no es necesaria con un batch size = 1
+            logits = model(audio_tensor, generated_sequence, tgt_padding_mask=None)
+
+            # Obtener última predicción
+            last_token_logits = logits[:, -1, :]
+            predicted_token = torch.argmax(last_token_logits, dim=-1).unsqueeze(0)
+
+            # Comprobamos si es el fin de la secuencia
+            if predicted_token.item() == eos:
+                break
+            
+            # Concatenamos en la secuencia
+            generated_sequence = torch.cat([generated_sequence, predicted_token], dim=1)
+
+    return generated_sequence.squeeze().cpu().numpy()
+
+
+def evaluate():
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+    print(f"--- INICIANDO EVALUACIÓN ---")
+    print(f"Modelo: {CHECKPOINT_PATH}")
+
+    # 1 - Inicializamos los procesadores
+    ap= AudioProcessor()
+    mp = MidiProcessor()
+
+    # 2 - Cargamos el split de validación del dataset
+    try:
+        df = pd.read_csv(CSV_PATH)
+        val_df = df[df['split'] == 'validation']
+        print(f"Total de archivos en Validación: {len(val_df)}")
+    except Exception as e:
+        print(f"Error al cargar el CSV: {CSV_PATH}")
+
+    # 3 - Cargamos el Modelo
+    cfg = get_model_config()
+
+    # Copiamos los hiperparámetros que utilizamos en el train del modelo
+    model = PianoTranscriptionModel(
+        midi_processor=mp,
+        encoder_cfg=cfg,
+        embed_dim=256,       
+        num_encoder_layers=4,
+        num_decoder_layers=4,
+        nhead=4
+    ).to(DEVICE)
+
+    try:
+        # Usamos map_location por si hacemos la inferencia en CPU para evitar errores
+        model.load_state_dict(torch.load(CHECKPOINT_PATH, map_location=DEVICE))
+        model.eval()
+        print(f"Modelo cargado correctamente.")
+    except Exception as e:
+        print(f"Ocurrió un error al caragr los pesos: {e}")
+        return
+    
+    # Diccionario para las métricas acumuladas
+    metrics = {
+        'onset': [], 
+        'onset_offset': [],
+        'velocity': []
+        }
+    
+    # Bucle de evaluación
+    # Establecemos un límite para la realizacion de pruebas rápidas,
+    # si queremos realizar una evaluación completa simplemente lo ponemos a None
+    count = 0
+    limit = 10
+
+    for idx, row in tqdm(val_df.iterrows(), total=len(val_df) if limit is None else limit):
+        if limit and count >= limit: break
+
+        audio_filename = os.path.join(ROOT_DIR, row['audio_filename'])
+        midi_filename_gt = os.path.join(ROOT_DIR, row['midi_filename'])
+
+        if not os.path.exists(audio_filename):
+            print(f"Audio no encontrado: {audio_filename}")
+            continue
+
+        try:
+            # Procesamos el audio
+            mel = ap.compute_spectogram(audio_filename) # (n_mels, time)
+            audio_tensor = torch.tensor(mel).unsqueeze(0).to(DEVICE) ## (1, n_mels, time)
+
+            # Inferencia
+            pred_tokens = predict_greedy(model, audio_tensor, mp)
+
+            # Decodificamos a MIDI
+            pred_midi_path = os.path.join(OUTPUT_DIR, f"pred_{count}.mid")
+            pred_midi_obj = mp.decode_midi(pred_tokens, output_path=pred_midi_path)
+
+            # Calculamos las métricas
+            on_f1, on_off_f1, vel_f1 = calculate_metrics(midi_filename_gt, pred_midi_obj)
+
+            metrics['onset'].append(on_f1)
+            metrics['onset_offset'].append(on_off_f1)
+            metrics['velocity'].append(vel_f1)
+
+            count += 1
+
+        except Exception as e:
+            print(f"Error en archivo {idx}: {e}")
+            continue
+
+    # --- RESULTADOS FINALES ---
+    print("\n" + "="*50)
+    print("RESULTADOS PROMEDIO (F1-Score)")
+    print("="*50)
+    if len(metrics['onset']) > 0:
+        print(f"1. Onset:                  {np.mean(metrics['onset']):.4f}")
+        print(f"2. Onset & Offset:         {np.mean(metrics['onset_offset']):.4f}")
+        print(f"3. Onset, Offset & Velocity: {np.mean(metrics['velocity']):.4f}")
+        print("-" * 50)
+        print(f"Evaluados: {len(metrics['onset'])} archivos.")
+    else:
+        print("No se pudieron calcular métricas.")
+    print("="*50)
+
+if __name__ == "__main__":
+    evaluate()
