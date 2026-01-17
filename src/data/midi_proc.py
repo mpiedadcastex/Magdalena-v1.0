@@ -28,6 +28,11 @@ class MidiProcessor:
         self.token_pad = 0
 
         # Note-On ->  Lo establecemos desde 1 y no desde 0 por motivos de intuitividad
+
+        # Padding -> 0
+        self.token_pad = 0
+
+        # Note-On ->  Lo establecemos desde 1 y no desde 0 por motivos de intuitividad
         # Rango: 1 a 88
         self.idx_note_on = 1
 
@@ -42,6 +47,11 @@ class MidiProcessor:
         # Velocity -> 
         # Rango: 277 a 308 
         self.idx_vel = self.idx_time + self.TIME_BINS  # 177 + 100 = 277
+        
+        # Comienzo (Start of Sequence) y Fin (End of Sequence) de la secuencia 
+        self.token_sos = self.idx_vel + self.VELOCITY_BINS    # 277 + 32 = 309
+        self.token_eos = self.token_sos + 1                         # 309 + 1 = 310
+
         
         # Comienzo (Start of Sequence) y Fin (End of Sequence) de la secuencia 
         self.token_sos = self.idx_vel + self.VELOCITY_BINS    # 277 + 32 = 309
@@ -65,6 +75,7 @@ class MidiProcessor:
             midi_data = pretty_midi.PrettyMIDI(midi)
         except Exception as e:
             print(f"Error al cargar MIDI: {e}")
+            return np.array([self.token_sos, self.token_eos], dtype=np.int32)
             return np.array([self.token_sos, self.token_eos], dtype=np.int32)
         
         # 1. Extraemos todas las notas
@@ -116,6 +127,9 @@ class MidiProcessor:
         # 4. Etapa de CONVERSIÓN de eventos A TOKENS
         tokens = [self.token_sos]
 
+        # 4. Etapa de CONVERSIÓN de eventos A TOKENS
+        tokens = [self.token_sos]
+
         current_time = 0.0
 
         for event in events:
@@ -141,9 +155,13 @@ class MidiProcessor:
                 # Mapear la velocidad a uno de los VELOCITY_BINS
                 # Nota: Dividimos por 128 ya que es el número de bins que establece MIDI 
                 # para codificar la velocidad 
+                # Nota: Dividimos por 128 ya que es el número de bins que establece MIDI 
+                # para codificar la velocidad 
                 vel_index = int((event['velocity'] / 128) * (self.VELOCITY_BINS))
                 tokens.append(self.idx_vel + vel_index)
 
+            # Calculamos el índice de pitch, en un rango de 1 a 88 
+            pitch_index = event['pitch'] - self.MIN_PITCH 
             # Calculamos el índice de pitch, en un rango de 1 a 88 
             pitch_index = event['pitch'] - self.MIN_PITCH 
             
@@ -154,6 +172,8 @@ class MidiProcessor:
                 tokens.append(self.idx_note_on + pitch_index)
             else:
                 tokens.append(self.idx_note_off + pitch_index)
+
+        tokens.append(self.token_eos)
 
         tokens.append(self.token_eos)
     
