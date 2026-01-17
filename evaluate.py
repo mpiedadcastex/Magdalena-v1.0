@@ -180,7 +180,7 @@ def evaluate():
         model.eval()
         print(f"Modelo cargado correctamente.")
     except Exception as e:
-        print(f"Ocurrió un error al caragr los pesos: {e}")
+        print(f"Ocurrió un error al cargar los pesos: {e}")
         return
     
     # Diccionario para las métricas acumuladas
