@@ -50,7 +50,7 @@ class MaestroDataset(Dataset):
 
         # Procesamos el MIDI con el MidiProcessor
         # Output -> tokens
-        midi_tokens = self.midi_processor.process_midi(midi_path)
+        midi_tokens = self.midi_processor.encode_midi(midi_path)
 
         # Corte de seguridad a ver si se puede entrenar
         # AUDIO

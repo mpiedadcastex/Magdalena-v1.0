@@ -21,10 +21,14 @@ GRAD_ACCUMULATION_STEPS = 4  # Simulamos batch de 4
 LEARNING_RATE = 1e-4   # Estándar para Transformers
 EPOCHS = 10
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+CHECKPOINT_DIR = "checkpoints"
 
 def train():
     print(f"Usando dispositivo: {DEVICE}")
 
+    # Creamos la carpeta de checkpoints si no existe
+    if not os.path.exists(CHECKPOINT_DIR):
+        os.makedirs(CHECKPOINT_DIR, exist_ok=True)
     # 1. PREPARAR DATOS
     print("Cargando datos...")
     ap = AudioProcessor(fmax=8000, n_mels=229)
@@ -61,7 +65,8 @@ def train():
 
     # --- SISTEMA DE REANUDACIÓN ---
     START_EPOCH = 0
-    checkpoint_path = "checkpoint_epoch_4.pt"
+    checkpoint_name = "checkpoint_epoch_4.pt"
+    checkpoint_path = os.path.join(CHECKPOINT_DIR, checkpoint_name)
 
     if os.path.exists(checkpoint_path):
         print(f"--> Cargando checkpoint: {checkpoint_path}")
@@ -152,7 +157,9 @@ def train():
         print(f"Fin Epoch {epoch+1} - Loss Promedio: {avg_loss:.4f}")
         
         # Guardar checkpoint cada época
-        torch.save(model.state_dict(), f"checkpoint_epoch_{epoch+1}.pt")
+        save_path = os.path.join(CHECKPOINT_DIR, f"checkpoint_epoch{epoch+1}.pt")
+
+        torch.save(model.state_dict(), save_path)
         torch.save(optimizer.state_dict())
 
 if __name__ == "__main__":

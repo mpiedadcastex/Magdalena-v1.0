@@ -21,11 +21,11 @@ piano_midi.write('test_scale.mid')
 
 # PROCESAR
 print("\n--- Procesando MIDI ---")
-tokens = proc.process_midi('test_scale.mid')
+tokens = proc.encode_midi('test_scale.mid')
 
 print(f"Tokens generados: {tokens}")
 print("\n--- Decodificación Manual (Lectura) ---")
-# Vamos a traducir los números a humano para ver si tiene sentido
+# Vamos a traducir los números a mano para ver si tiene sentido
 for t in tokens:
     if proc.idx_vel <= t < proc.idx_vel + proc.VELOCITY_BINS:
         val = t - proc.idx_vel
