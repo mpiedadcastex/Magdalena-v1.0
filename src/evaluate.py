@@ -79,13 +79,6 @@ def calculate_metrics(ref_midi_path, est_midi_path):
     
     # 1º - Onset F1-Score
     # En este caso, unicamente nos importa acertar el tiempo de inicio de la nota (con la tolerancia establecida)
-    # En matched_onset vamos a devolver los índices de las notas que coinciden
-    matched_onset = mir_eval.transcription.match_notes(
-        ref_intervals, ref_pitches,
-        est_intervals, est_pitches,
-        onset_tolerance=ONSET_TOLERANCE,
-        offset_ratio=None # No aplica en este caso
-    )
 
     # Calculamos P (Precision), R (Recall) y F1
     onset_p, onset_r, onset_f1 = mir_eval.transcription.precision_recall_f1(
@@ -97,14 +90,6 @@ def calculate_metrics(ref_midi_path, est_midi_path):
 
     # 1º - Onset & Offset F1-Score
     # En este caso, nos importa acertar tanto el tiempo de inicio como de final de la nota
-    # En matched_on_off vamos a devolver los índices de las notas que coinciden
-    matched_on_off = mir_eval.transcription.match_notes(
-        ref_intervals, ref_pitches,
-        est_intervals, est_pitches,
-        onset_tolerance=ONSET_TOLERANCE,
-        offset_ratio=OFFSET_RATIO # Ahora sí que importa
-    )
-
     on_off_p, on_off_r, on_off_f1 = mir_eval.transcription.precision_recall_f1(
         ref_intervals, ref_pitches,
         est_intervals, est_pitches,
@@ -122,4 +107,4 @@ def calculate_metrics(ref_midi_path, est_midi_path):
         velocity_tolerance=VELOCITY_TOLERANCE
     )
 
-    return onset_f1,matched_onset, on_off_f1, matched_on_off, vel_f1
+    return onset_f1, on_off_f1, vel_f1
