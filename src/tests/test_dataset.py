@@ -1,6 +1,8 @@
+import sys
 import os
 import torch
-from data.dataset import MaestroDataset
+
+from src.data.maestro_dataset import MaestroDataset
 
 DATA_ROOT = r"data\raw\maestro-v3.0.0\maestro-v3.0.0"
 

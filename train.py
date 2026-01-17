@@ -1,3 +1,4 @@
+import re
 import os
 # Configuración para evitar fragmentación de memoria en la GPU
 os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
@@ -22,13 +23,19 @@ LEARNING_RATE = 1e-4   # Estándar para Transformers
 EPOCHS = 10
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 CHECKPOINT_DIR = "checkpoints"
+MODEL_CHECKPOINT = os.path.join(CHECKPOINT_DIR,"model")
+OPTIMIZER_CHECKPOINT = os.path.join(CHECKPOINT_DIR,"optimizer")
 
 def train():
     print(f"Usando dispositivo: {DEVICE}")
 
-    # Creamos la carpeta de checkpoints si no existe
-    if not os.path.exists(CHECKPOINT_DIR):
-        os.makedirs(CHECKPOINT_DIR, exist_ok=True)
+    # Si no existen las carpetas de guardado de checkpoints las creamos
+    # MODELO
+    os.makedirs(MODEL_CHECKPOINT, exist_ok=True)
+
+    # OPTIMIZER
+    os.makedirs(OPTIMIZER_CHECKPOINT, exist_ok=True)    
+
     # 1. PREPARAR DATOS
     print("Cargando datos...")
     ap = AudioProcessor(fmax=8000, n_mels=229)
@@ -65,18 +72,47 @@ def train():
 
     # --- SISTEMA DE REANUDACIÓN ---
     START_EPOCH = 0
-    checkpoint_name = "checkpoint_epoch_4.pt"
-    checkpoint_path = os.path.join(CHECKPOINT_DIR, checkpoint_name)
 
-    if os.path.exists(checkpoint_path):
-        print(f"--> Cargando checkpoint: {checkpoint_path}")
-        # Cargar pesos
-        model.load_state_dict(torch.load(checkpoint_path))
-        # Ajustar época de inicio
-        START_EPOCH = 4 # Si cargamos la 4, empezamos en la 5 (índice 4 en range)
-        print(f"--> Reanudando entrenamiento desde la Epoch {START_EPOCH + 1}")
+    print(f"Buscando checkpoints disponibles ...")
+
+    model_files = [f for f in os.listdir(MODEL_CHECKPOINT) if f.endswith('.pth')]
+    
+    if model_files:
+        epochs_found = []
+        for f in model_files:
+            match = re.search(r'model_epoch_(\d+).pth', f)
+            if match:
+                epochs_found.append(int(match.group(1)))
+        
+        if epochs_found:
+            max_epoch = max(epochs_found)
+
+            # Construimos las rutas de carga
+            model_load_path = os.path.join(MODEL_CHECKPOINT, f"model_epoch_{max_epoch}.pth")
+            optimizer_load_path = os.path.join(OPTIMIZER_CHECKPOINT, f"opt_epoch_{max_epoch}.pth")
+
+            try:
+                # carga de los pesos del modelo
+                model.load_state_dict(torch.load(model_load_path, map_location=DEVICE))
+                print(f"Modelo cargado: {model_load_path}")
+
+                # Carga del estado del optimizador
+                if os.path.exists(optimizer_load_path): 
+                    optimizer.load_state_dict(torch.load(optimizer_load_path, map_location=DEVICE))
+                    print(f"Optimizador cargado: {optimizer_load_path}")
+                else:
+                    print(f"AVISO --> No se ha encontrado checkpoint para el optimizador. Se usará uno nuevo")
+
+                # Ajustamos la epoch de inicio
+                START_EPOCH = max_epoch
+                print(f"Reanudando entrenamiento desde epoch {START_EPOCH + 1}")
+
+            except Exception as e:
+                print(f"Error al cargar el checkpoint {e}. Empezando desde cero.")
+        else:
+            print(f"No se encontraron archivos con el formato correcto. Empezando desde cero.")
     else:
-        print("--> No se encontró checkpoint, empezando desde cero.")
+        print(f"No se encontraron checkpoints. Empezando desde cero.")
 
     # --- BUCLE DE ENTRENAMIENTO ---
     optimizer.zero_grad()
@@ -90,9 +126,9 @@ def train():
         loop = tqdm(train_loader, desc=f"Epoch {epoch+1}/{EPOCHS}")
         
         for i, (batch_audio, batch_midi) in enumerate(loop):
+            
             # batch_audio: (B, 229, Time)
             # batch_midi: (B, Seq_Len)
-            
             batch_audio = batch_audio.to(DEVICE)
             batch_midi = batch_midi.to(DEVICE)
 
@@ -134,8 +170,11 @@ def train():
             # Backward
             scaler.scale(loss).backward()
             
-            # Si ya hemos dado el nº de pasos establecido
-            if (i + 1) % GRAD_ACCUMULATION_STEPS == 0:
+            # Definimos las condiciones para hacer step
+            is_accumulation_step = (i + 1) % GRAD_ACCUMULATION_STEPS == 0
+            is_last_step = (i + 1) == len(train_loader)
+            
+            if is_accumulation_step or is_last_step:
                 
                 # Gradient Clipping
                 scaler.unscale_(optimizer)
@@ -156,11 +195,25 @@ def train():
         avg_loss = total_loss / len(train_loader)
         print(f"Fin Epoch {epoch+1} - Loss Promedio: {avg_loss:.4f}")
         
-        # Guardar checkpoint cada época
-        save_path = os.path.join(CHECKPOINT_DIR, f"checkpoint_epoch{epoch+1}.pt")
+        # Definimos los nomrbes de los archivos de guardado
+        current_epoch_save = epoch + 1
 
-        torch.save(model.state_dict(), save_path)
-        torch.save(optimizer.state_dict())
+        model_filename = f"model_epoch_{current_epoch_save}.pth"
+        optimizer_filename = f"opt_epoch_{current_epoch_save}.pth"
+
+        model_save_path = os.path.join(MODEL_CHECKPOINT, model_filename)
+        optimizer_save_path = os.path.join(OPTIMIZER_CHECKPOINT, optimizer_filename)
+
+        print(f"Guardando checkpoints de epoch {current_epoch_save}...")
+
+        try:
+            # Guardamos los checkpoints en sus carpetas correspondientes
+            torch.save(model.state_dict(), model_save_path)
+            torch.save(optimizer.state_dict(), optimizer_save_path)
+            print(f"Guardado completado con éxito")
+        except Exception as e:
+            print(f"Error al guardar el checkpoint {e}")
+        
 
 if __name__ == "__main__":
     train()

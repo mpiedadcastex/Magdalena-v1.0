@@ -1,5 +1,5 @@
 import torch
-from models.transformer import PianoTranscriptionModel
+from src.models.transformer import PianoTranscriptionModel
 
 print("--- Probando Modelo Completo (End-to-End) ---")
 

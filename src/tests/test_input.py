@@ -1,5 +1,5 @@
 import os
-from data.audio_proc import AudioProcessor
+from src.data.audio_proc import AudioProcessor
 
 # Rutas
 processor = AudioProcessor()

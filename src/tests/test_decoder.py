@@ -1,5 +1,5 @@
 import torch
-from models.layers.decoder import MidiDecoder
+from src.models.layers.decoder import MidiDecoder
 
 print("--- Probando Decoder MIDI ---")
 
