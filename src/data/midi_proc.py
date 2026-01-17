@@ -28,11 +28,6 @@ class MidiProcessor:
         self.token_pad = 0
 
         # Note-On ->  Lo establecemos desde 1 y no desde 0 por motivos de intuitividad
-
-        # Padding -> 0
-        self.token_pad = 0
-
-        # Note-On ->  Lo establecemos desde 1 y no desde 0 por motivos de intuitividad
         # Rango: 1 a 88
         self.idx_note_on = 1
 
@@ -47,11 +42,6 @@ class MidiProcessor:
         # Velocity -> 
         # Rango: 277 a 308 
         self.idx_vel = self.idx_time + self.TIME_BINS  # 177 + 100 = 277
-        
-        # Comienzo (Start of Sequence) y Fin (End of Sequence) de la secuencia 
-        self.token_sos = self.idx_vel + self.VELOCITY_BINS    # 277 + 32 = 309
-        self.token_eos = self.token_sos + 1                         # 309 + 1 = 310
-
         
         # Comienzo (Start of Sequence) y Fin (End of Sequence) de la secuencia 
         self.token_sos = self.idx_vel + self.VELOCITY_BINS    # 277 + 32 = 309
@@ -76,8 +66,7 @@ class MidiProcessor:
         except Exception as e:
             print(f"Error al cargar MIDI: {e}")
             return np.array([self.token_sos, self.token_eos], dtype=np.int32)
-            return np.array([self.token_sos, self.token_eos], dtype=np.int32)
-        
+            
         # 1. Extraemos todas las notas
         notes = []
         for instrument in midi_data.instruments: # En nuestro caso es un solo instrumento
@@ -101,7 +90,7 @@ class MidiProcessor:
             if not (self.MIN_PITCH <= note.pitch <= self.MAX_PITCH):
                 continue
 
-            # Evento Note On
+            # Note On
             events.append({
                 'type': 'on',
                 'pitch': note.pitch,
@@ -109,7 +98,7 @@ class MidiProcessor:
                 'velocity': note.velocity
                 })
             
-            # Evento Note Off
+            # Note Off
             events.append({
                 'type': 'off',
                 'pitch': note.pitch,
@@ -123,9 +112,6 @@ class MidiProcessor:
         events.sort(key=lambda x: (x['time'], 0 if x['type'] == 'off' else 1))
 
 ###############################################################################################################
-
-        # 4. Etapa de CONVERSIÓN de eventos A TOKENS
-        tokens = [self.token_sos]
 
         # 4. Etapa de CONVERSIÓN de eventos A TOKENS
         tokens = [self.token_sos]
@@ -155,13 +141,10 @@ class MidiProcessor:
                 # Mapear la velocidad a uno de los VELOCITY_BINS
                 # Nota: Dividimos por 128 ya que es el número de bins que establece MIDI 
                 # para codificar la velocidad 
-                # Nota: Dividimos por 128 ya que es el número de bins que establece MIDI 
-                # para codificar la velocidad 
                 vel_index = int((event['velocity'] / 128) * (self.VELOCITY_BINS))
+                vel_index = min(vel_index, self.VELOCITY_BINS - 1)
                 tokens.append(self.idx_vel + vel_index)
 
-            # Calculamos el índice de pitch, en un rango de 1 a 88 
-            pitch_index = event['pitch'] - self.MIN_PITCH 
             # Calculamos el índice de pitch, en un rango de 1 a 88 
             pitch_index = event['pitch'] - self.MIN_PITCH 
             
@@ -173,10 +156,9 @@ class MidiProcessor:
             else:
                 tokens.append(self.idx_note_off + pitch_index)
 
+        # Finalizamos la secuencia con el token <EOS>
         tokens.append(self.token_eos)
-
-        tokens.append(self.token_eos)
-    
+   
         return np.array(tokens, dtype=np.int32)
     
 
@@ -189,7 +171,7 @@ class MidiProcessor:
         piano = pretty_midi.Instrument(program=0)
 
         current_time = 0.0
-        current_velocity = 0
+        current_velocity = 100 # Valor por defecto seguro
 
         # Diccionario para el rastreo de las notas activas
         # Clave: Pitch -> Valor:(start_time, velocity)
@@ -229,7 +211,7 @@ class MidiProcessor:
                     start, vel = active_notes[pitch]
 
                     # Creamos la nota MIDI y la añadimos a la secuencia
-                    note = pretty_midi.Note(pitch=pitch, start=start, end=current_time)
+                    note = pretty_midi.Note(velocity=vel, pitch=pitch, start=start, end=current_time)
                     piano.notes.append(note)
 
                     # La quitamos del diccionario de notas activas
