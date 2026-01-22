@@ -201,7 +201,8 @@ def evaluate():
         if not os.path.exists(audio_filename):
             print(f"No encontrado: {audio_filename}")
             continue
-
+        
+        print(f"Procesando audio ->\t{audio_filename}")
         try:
             # A. Procesar y RECORTAR Audio
             mel = ap.compute_spectogram(audio_filename) 
