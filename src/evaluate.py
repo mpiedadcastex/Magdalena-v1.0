@@ -20,6 +20,10 @@ CSV_PATH = '/content/drive/MyDrive/TFG_Data/maestro-v3.0.0/maestro-v3.0.0_metada
 ROOT_DIR = '/content/drive/MyDrive/TFG_Data/maestro-v3.0.0/maestro-v3.0.0'
 OUTPUT_DIR = "evaluation_results"
 
+# --- CONFIGURACIÓN DE RECORTE (CRUCIAL PARA OOM) ---
+TEST_DURATION = 90  # Segundos a evaluar
+FPS = 50           # Frames por segundo (aprox 10ms hop)
+
 # Tolerancias
 ONSET_TOLERANCE = 0.05      # 50ms
 OFFSET_RATIO = 0.2          # 20% de la duración de la nota
@@ -129,9 +133,13 @@ def predict_greedy(model, audio_tensor, midi_processor:MidiProcessor, max_len=20
             # Ponemos tgt_padding_mask a None ya que no es necesaria con un batch size = 1
             logits = model(audio_tensor, generated_sequence, tgt_padding_mask=None)
 
+            print("Entro 5")
+
             # Obtener última predicción
             last_token_logits = logits[:, -1, :]
             predicted_token = torch.argmax(last_token_logits, dim=-1).unsqueeze(0)
+
+            print("Entro 6")
 
             # Comprobamos si es el fin de la secuencia
             if predicted_token.item() == eos:
@@ -145,26 +153,25 @@ def predict_greedy(model, audio_tensor, midi_processor:MidiProcessor, max_len=20
 
 def evaluate():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-    print(f"--- INICIANDO EVALUACIÓN ---")
+    print(f"--- INICIANDO EVALUACIÓN (Recorte {TEST_DURATION}s) ---")
     print(f"Modelo: {CHECKPOINT_PATH}")
 
-    # 1 - Inicializamos los procesadores
-    ap= AudioProcessor()
+    # 1. Inicializar
+    ap = AudioProcessor()
     mp = MidiProcessor()
 
-    # 2 - Cargamos el split de validación del dataset
+    # 2. Cargar CSV (Usamos Pandas para tener las rutas de archivo)
     try:
         df = pd.read_csv(CSV_PATH)
-        val_df = df[df['split'] == 'validation']
-        print(f"Total de archivos en Validación: {len(val_df)}")
+        # Filtramos por validación (o test) según MAESTRO
+        val_df = df[df['split'] == 'validation'] 
+        print(f"Archivos en Validación: {len(val_df)}")
     except Exception as e:
-        print(f"Error al cargar el CSV: {CSV_PATH}")
+        print(f"Error cargando CSV: {e}")
+        return
 
-    # 3 - Cargamos el Modelo
+    # 3. Cargar Modelo
     cfg = get_model_config()
-
-    # Copiamos los hiperparámetros que utilizamos en el train del modelo
     model = PianoTranscriptionModel(
         midi_processor=mp,
         encoder_cfg=cfg,
@@ -175,27 +182,19 @@ def evaluate():
     ).to(DEVICE)
 
     try:
-        # Usamos map_location por si hacemos la inferencia en CPU para evitar errores
         model.load_state_dict(torch.load(CHECKPOINT_PATH, map_location=DEVICE))
         model.eval()
         print(f"Modelo cargado correctamente.")
     except Exception as e:
-        print(f"Ocurrió un error al caragr los pesos: {e}")
+        print(f"Error cargando pesos: {e}")
         return
     
-    # Diccionario para las métricas acumuladas
-    metrics = {
-        'onset': [], 
-        'onset_offset': [],
-        'velocity': []
-        }
+    metrics = {'onset': [], 'onset_offset': [], 'velocity': []}
     
-    # Bucle de evaluación
-    # Establecemos un límite para la realizacion de pruebas rápidas,
-    # si queremos realizar una evaluación completa simplemente lo ponemos a None
     count = 0
-    limit = 10
+    limit = 10  # Pon None para evaluar todo
 
+    # Iteramos sobre el DataFrame, NO sobre el DataLoader
     for idx, row in tqdm(val_df.iterrows(), total=len(val_df) if limit is None else limit):
         if limit and count >= limit: break
 
@@ -203,23 +202,51 @@ def evaluate():
         midi_filename_gt = os.path.join(ROOT_DIR, row['midi_filename'])
 
         if not os.path.exists(audio_filename):
-            print(f"Audio no encontrado: {audio_filename}")
+            print(f"No encontrado: {audio_filename}")
             continue
 
         try:
-            # Procesamos el audio
-            mel = ap.compute_spectogram(audio_filename) # (n_mels, time)
-            audio_tensor = torch.tensor(mel).unsqueeze(0).to(DEVICE) ## (1, n_mels, time)
+            # A. Procesar y RECORTAR Audio
+            mel = ap.compute_spectogram(audio_filename) 
+            
+            # Recorte temporal para evitar OOM
+            max_frames = int(TEST_DURATION * FPS)
+            if mel.shape[1] > max_frames:
+                mel = mel[:, :max_frames]
 
-            # Inferencia
-            pred_tokens = predict_greedy(model, audio_tensor, mp)
+            audio_tensor = torch.tensor(mel).unsqueeze(0).to(DEVICE)
 
-            # Decodificamos a MIDI
+            # B. Inferencia
+            # max_len limitado para evitar bucles infinitos
+            pred_tokens = predict_greedy(model, audio_tensor, mp, max_len=3000)
+
+            # C. Decodificar
             pred_midi_path = os.path.join(OUTPUT_DIR, f"pred_{count}.mid")
             pred_midi_obj = mp.decode_midi(pred_tokens, output_path=pred_midi_path)
 
-            # Calculamos las métricas
-            on_f1, on_off_f1, vel_f1 = calculate_metrics(midi_filename_gt, pred_midi_obj)
+            # D. Calcular Métricas (Comparando solo los primeros 30s)
+            
+            # 1. Cargar GT recortado
+            ref_ints, ref_ps, ref_vels = midi_to_intervals(midi_filename_gt, max_time=TEST_DURATION)
+            # 2. Cargar Predicción recortada
+            est_ints, est_ps, est_vels = midi_to_intervals(pred_midi_path, max_time=TEST_DURATION)
+
+            if est_ints.size == 0 or ref_ints.size == 0:
+                continue
+
+            # Onset
+            _, _, on_f1 = mir_eval.transcription.precision_recall_f1(
+                ref_ints, ref_ps, est_ints, est_ps, onset_tolerance=ONSET_TOLERANCE
+            )
+            # Onset & Offset
+            _, _, on_off_f1 = mir_eval.transcription.precision_recall_f1(
+                ref_ints, ref_ps, est_ints, est_ps, onset_tolerance=ONSET_TOLERANCE, offset_ratio=OFFSET_RATIO
+            )
+            # Velocity
+            _, _, vel_f1 = mir_eval.transcription_velocity.precision_recall_f1(
+                ref_ints, ref_ps, ref_vels, est_ints, est_ps, est_vels,
+                onset_tolerance=ONSET_TOLERANCE, offset_ratio=OFFSET_RATIO, velocity_tolerance=VELOCITY_TOLERANCE
+            )
 
             metrics['onset'].append(on_f1)
             metrics['onset_offset'].append(on_off_f1)
@@ -231,18 +258,15 @@ def evaluate():
             print(f"Error en archivo {idx}: {e}")
             continue
 
-    # --- RESULTADOS FINALES ---
     print("\n" + "="*50)
-    print("RESULTADOS PROMEDIO (F1-Score)")
+    print(f"RESULTADOS PROMEDIO ({TEST_DURATION}s)")
     print("="*50)
     if len(metrics['onset']) > 0:
         print(f"1. Onset:                  {np.mean(metrics['onset']):.4f}")
         print(f"2. Onset & Offset:         {np.mean(metrics['onset_offset']):.4f}")
         print(f"3. Onset, Offset & Velocity: {np.mean(metrics['velocity']):.4f}")
-        print("-" * 50)
-        print(f"Evaluados: {len(metrics['onset'])} archivos.")
     else:
-        print("No se pudieron calcular métricas.")
+        print("No se calcularon métricas.")
     print("="*50)
 
 if __name__ == "__main__":
