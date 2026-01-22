@@ -2,7 +2,10 @@ import os
 import torch
 import numpy as np
 import pretty_midi
-import mir_eval
+
+import mir_eval.transcription
+import mir_eval.transcription_velocity
+
 from tqdm import tqdm
 import pandas as pd
 
