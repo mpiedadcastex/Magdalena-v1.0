@@ -20,7 +20,7 @@ from utils import get_model_config
 BATCH_SIZE = 1         # Pequeño por la VRAM de Colab (con 2 ha explotado)
 GRAD_ACCUMULATION_STEPS = 4  # Simulamos batch de 4
 LEARNING_RATE = 1e-4   # Estándar para Transformers
-EPOCHS = 10
+EPOCHS = 40
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 CHECKPOINT_DIR = "checkpoints"
 MODEL_CHECKPOINT = os.path.join(CHECKPOINT_DIR,"model")
@@ -41,7 +41,7 @@ def train():
     ap = AudioProcessor(fmax=8000, n_mels=229)
     mp = MidiProcessor() # Asegúrate que tu MidiProcessor tenga vocab_size
     
-    train_loader, val_loader = get_dataloaders(
+    train_loader, _ = get_dataloaders(
         csv_path='/content/drive/MyDrive/TFG_Data/maestro-v3.0.0/maestro-v3.0.0_metadata.csv',      # <--- AJUSTA LA RUTA
         root_dir='/content/drive/MyDrive/TFG_Data/maestro-v3.0.0/maestro-v3.0.0',     # <--- AJUSTA LA RUTA
         audio_processor=ap, 
