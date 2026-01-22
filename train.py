@@ -17,7 +17,7 @@ from src.models.transformer import PianoTranscriptionModel
 from utils import get_model_config
 
 # --- HIPERPARÁMETROS ---
-BATCH_SIZE = 2         # Pequeño por la VRAM de Colab (con 2 ha explotado)
+BATCH_SIZE = 1         # Pequeño por la VRAM de Colab (con 2 ha explotado)
 GRAD_ACCUMULATION_STEPS = 4  # Simulamos batch de 4
 LEARNING_RATE = 1e-4   # Estándar para Transformers
 EPOCHS = 40
