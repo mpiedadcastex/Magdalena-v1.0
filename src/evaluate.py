@@ -133,13 +133,9 @@ def predict_greedy(model, audio_tensor, midi_processor:MidiProcessor, max_len=20
             # Ponemos tgt_padding_mask a None ya que no es necesaria con un batch size = 1
             logits = model(audio_tensor, generated_sequence, tgt_padding_mask=None)
 
-            print("Entro 5")
-
             # Obtener última predicción
             last_token_logits = logits[:, -1, :]
             predicted_token = torch.argmax(last_token_logits, dim=-1).unsqueeze(0)
-
-            print("Entro 6")
 
             # Comprobamos si es el fin de la secuencia
             if predicted_token.item() == eos:
