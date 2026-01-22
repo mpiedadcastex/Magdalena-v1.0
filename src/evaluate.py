@@ -128,7 +128,7 @@ def predict_greedy(model, audio_tensor, midi_processor:MidiProcessor, max_len=20
     generated_sequence = torch.tensor([[sos]], dtype=torch.long).to(DEVICE)
 
     with torch.no_grad():
-        for _ in range(max_len):
+        for _ in tqdm(range(max_len), desc="Generando notas"):
             # Forward pass
             # Ponemos tgt_padding_mask a None ya que no es necesaria con un batch size = 1
             logits = model(audio_tensor, generated_sequence, tgt_padding_mask=None)
@@ -139,6 +139,7 @@ def predict_greedy(model, audio_tensor, midi_processor:MidiProcessor, max_len=20
 
             # Comprobamos si es el fin de la secuencia
             if predicted_token.item() == eos:
+                print("Fin de canción detectado (<EOS>)")
                 break
             
             # Concatenamos en la secuencia
