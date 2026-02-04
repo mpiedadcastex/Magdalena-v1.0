@@ -58,55 +58,39 @@ def midi_to_intervals(midi_path, max_time=None):
         
     return (np.array(intervals), np.array(pitches), np.array(velocities))
 
-def predict_greedy(model, audio_tensor, midi_processor:MidiProcessor, max_len=None):
+def predict_sampling(model, audio_tensor, midi_processor, max_len=None, temperature=1.0):
+    """
+    Genera notas usando muestreo probabilístico (rompe bucles repetitivos).
+    temperature: 
+      - 1.0 = Normal
+      - < 1.0 (ej 0.8) = Más conservador (menos errores, más repetitivo)
+      - > 1.0 (ej 1.2) = Más creativo (más variedad, más riesgo de error)
+    """
     model.eval()
     sos = midi_processor.token_sos
     eos = midi_processor.token_eos
-
+    
     generated_sequence = torch.tensor([[sos]], dtype=torch.long).to(DEVICE)
+    if max_len is None: max_len = int(TEST_DURATION * 35)
 
-    if max_len is None:
-        max_len = int(TEST_DURATION * 35) 
-
-    print(f"Generando secuencia (Máx tokens: {max_len})...")
+    print(f"Generando con Sampling (T={temperature})...")
 
     with torch.no_grad():
-        for i in tqdm(range(max_len), desc="Tokens"):
-            # 1. Forward Pass
+        for i in tqdm(range(max_len)):
             logits = model(audio_tensor, generated_sequence, tgt_padding_mask=None)
+            last_logits = logits[:, -1, :] / temperature  # Aplicar temperatura
             
-            # 2. Obtenemos los logits del último token generado
-            last_token_logits = logits[:, -1, :]  # <--- ESTA LÍNEA FALTABA
+            # Convertir logits a probabilidades
+            probs = torch.softmax(last_logits, dim=-1)
             
-            # 3. Elegimos el token con mayor probabilidad (Greedy)
-            predicted_token = torch.argmax(last_token_logits, dim=-1).unsqueeze(0)
+            # Elegir el siguiente token basándose en la probabilidad (tira los dados)
+            predicted_token = torch.multinomial(probs, num_samples=1)
 
-            # --- DEBUG: IMPRIMIR LOS PRIMEROS 20 TOKENS ---
-            if i < 20:
-                token_val = predicted_token.item()
-                # Intentamos decodificar qué significa el token para entender el problema
-                meaning = "Desconocido"
-                if token_val == midi_processor.token_pad: meaning = "PAD"
-                elif token_val == midi_processor.token_sos: meaning = "SOS"
-                elif token_val == midi_processor.token_eos: meaning = "EOS"
-                elif midi_processor.idx_note_on <= token_val < midi_processor.idx_note_off: meaning = "Note ON"
-                elif midi_processor.idx_note_off <= token_val < midi_processor.idx_time: meaning = "Note OFF"
-                elif midi_processor.idx_time <= token_val < midi_processor.idx_vel: meaning = "Time Shift"
-                elif midi_processor.idx_vel <= token_val < midi_processor.token_sos: meaning = "Velocity"
-                
-                print(f" -> Paso {i}: Token {token_val} ({meaning})")
-            # ----------------------------------------------
-
-            # Si el modelo predice EOS (Fin de secuencia), paramos
             if predicted_token.item() == eos:
-                print(" <EOS> Fin de canción detectado.")
                 break
             
-            # Concatenamos y seguimos
             generated_sequence = torch.cat([generated_sequence, predicted_token], dim=1)
-            
-            if i % 50 == 0:
-                torch.cuda.empty_cache()
+            if i % 50 == 0: torch.cuda.empty_cache()
 
     return generated_sequence.squeeze().cpu().numpy()
 
@@ -153,7 +137,7 @@ def evaluate():
             if mel.shape[1] > max_frames: mel = mel[:, :max_frames]
             audio_tensor = torch.tensor(mel).unsqueeze(0).to(DEVICE)
 
-            pred_tokens = predict_greedy(model, audio_tensor, mp)
+            pred_tokens = predict_sampling(model, audio_tensor, mp)
             pred_midi_path = os.path.join(OUTPUT_DIR, f"pred_{count}.mid")
             mp.decode_midi(pred_tokens, output_path=pred_midi_path)
 
