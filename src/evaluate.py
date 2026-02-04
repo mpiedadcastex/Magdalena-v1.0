@@ -19,7 +19,7 @@ from utils import get_model_config
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Rutas
-EPOCHS_COMPLETED = 10 
+EPOCHS_COMPLETED = 36 
 CHECKPOINT_PATH = f"checkpoints/model/model_epoch_{EPOCHS_COMPLETED}.pth"
 CSV_PATH = '/content/drive/MyDrive/TFG_Data/maestro-v3.0.0/maestro-v3.0.0_metadata.csv'
 ROOT_DIR = '/content/drive/MyDrive/TFG_Data/maestro-v3.0.0/maestro-v3.0.0'
