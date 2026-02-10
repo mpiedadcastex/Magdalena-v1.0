@@ -20,7 +20,7 @@ from utils import get_model_config
 BATCH_SIZE = 2         # Pequeño por la VRAM de Colab (con 2 ha explotado)
 GRAD_ACCUMULATION_STEPS = 8  # Simulamos batch de 4
 LEARNING_RATE = 1e-4   # Estándar para Transformers
-EPOCHS = 40
+EPOCHS = 80
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 CHECKPOINT_DIR = "checkpoints"
 MODEL_CHECKPOINT = os.path.join(CHECKPOINT_DIR,"model")
