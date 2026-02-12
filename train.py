@@ -14,7 +14,7 @@ from src.data.audio_proc import AudioProcessor
 from src.data.midi_proc import MidiProcessor
 from src.data.maestro_dataset import get_dataloaders
 from src.models.transformer import PianoTranscriptionModel
-from utils import get_model_config
+from utils import get_model_config, log_training_loss
 
 # --- HIPERPARÁMETROS ---
 BATCH_SIZE = 2         # Pequeño por la VRAM de Colab (con 2 ha explotado)
