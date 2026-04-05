@@ -110,38 +110,53 @@ def calculate_metrics(ref_midi_path, est_midi_path):
     return onset_f1, on_off_f1, vel_f1
 
 
-def predict_greedy(model, audio_tensor, midi_processor:MidiProcessor, max_len=2048):
+def predict_sampling(model, audio_tensor, midi_processor, max_len=None, temperature=1.0):
     """
-    Generación nota a nota (Greedy)
+    Genera notas usando muestreo probabilístico (rompe bucles repetitivos).
+    temperature: 
+      - 1.0 = Normal
+      - < 1.0 (ej 0.8) = Más conservador (menos errores, más repetitivo)
+      - > 1.0 (ej 1.2) = Más creativo (más variedad, más riesgo de error)
     """
     model.eval()
-
-    # Establecemos los tokens especiales de inicio y fin con los atributos del procesador midi
     sos = midi_processor.token_sos
     eos = midi_processor.token_eos
-
-    # Iniciamos la secuencia con <SOS>
+    
+    # Asegúrate de que DEVICE está definido en tu script (ej. DEVICE = 'cuda' si usas GPU)
     generated_sequence = torch.tensor([[sos]], dtype=torch.long).to(DEVICE)
+    
+    if max_len is None: 
+        max_len = int(TEST_DURATION * 35) # Ajusta TEST_DURATION según tu código
+
+    print(f"Generando con Sampling (T={temperature})...")
 
     with torch.no_grad():
-        for _ in range(max_len):
-            # Forward pass
-            # Ponemos tgt_padding_mask a None ya que no es necesaria con un batch size = 1
+        for i in tqdm(range(max_len), desc="Tokens generados"):
+            # 1. Forward Pass
             logits = model(audio_tensor, generated_sequence, tgt_padding_mask=None)
+            
+            # 2. Obtenemos los logits del último token y aplicamos la temperatura
+            last_logits = logits[:, -1, :] / temperature
+            
+            # 3. Convertir logits a probabilidades
+            probs = torch.softmax(last_logits, dim=-1)
+            
+            # 4. Elegir el siguiente token basándose en la probabilidad (tira los dados)
+            predicted_token = torch.multinomial(probs, num_samples=1)
 
-            # Obtener última predicción
-            last_token_logits = logits[:, -1, :]
-            predicted_token = torch.argmax(last_token_logits, dim=-1).unsqueeze(0)
-
-            # Comprobamos si es el fin de la secuencia
+            # Si predice el token de fin, paramos
             if predicted_token.item() == eos:
+                print(" <EOS> Fin de secuencia detectado.")
                 break
             
-            # Concatenamos en la secuencia
+            # Concatenamos el token predicho a la secuencia
             generated_sequence = torch.cat([generated_sequence, predicted_token], dim=1)
+            
+            # Limpiamos caché de vez en cuando para no saturar la VRAM
+            if i % 50 == 0: 
+                torch.cuda.empty_cache()
 
     return generated_sequence.squeeze().cpu().numpy()
-
 
 def evaluate():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -212,7 +227,7 @@ def evaluate():
             audio_tensor = torch.tensor(mel).unsqueeze(0).to(DEVICE) ## (1, n_mels, time)
 
             # Inferencia
-            pred_tokens = predict_greedy(model, audio_tensor, mp)
+            pred_tokens = predict_sampling(model, audio_tensor, mp)
 
             # Decodificamos a MIDI
             pred_midi_path = os.path.join(OUTPUT_DIR, f"pred_{count}.mid")
