@@ -20,6 +20,13 @@ CSV_PATH = '/content/drive/MyDrive/TFG_Data/maestro-v3.0.0/maestro-v3.0.0_metada
 ROOT_DIR = '/content/drive/MyDrive/TFG_Data/maestro-v3.0.0/maestro-v3.0.0'
 OUTPUT_DIR = "evaluation_results"
 
+# Duración del recorte de audio a evaluar (en segundos)
+# 30 o 45 segundos es un buen valor para no saturar la GPU en inferencia.
+TEST_DURATION = 30 
+
+# Límite físico de tokens aprendido por el modelo durante el entrenamiento
+MAX_MIDI_TOKENS = 1500
+
 # Tolerancias
 ONSET_TOLERANCE = 0.05      # 50ms
 OFFSET_RATIO = 0.2          # 20% de la duración de la nota
@@ -126,9 +133,13 @@ def predict_sampling(model, audio_tensor, midi_processor, max_len=None, temperat
     generated_sequence = torch.tensor([[sos]], dtype=torch.long).to(DEVICE)
     
     if max_len is None: 
-        max_len = int(TEST_DURATION * 35) # Ajusta TEST_DURATION según tu código
-
-    print(f"Generando con Sampling (T={temperature})...")
+        # Calculamos la estimación basada en la duración del audio
+        estimacion_tokens = int(TEST_DURATION * 35)
+        
+        # El límite real NUNCA debe superar lo que el modelo aprendió (MAX_MIDI_TOKENS)
+        max_len = min(estimacion_tokens, MAX_MIDI_TOKENS)
+        
+    print(f"Generando con Sampling (T={temperature}). Límite de tokens: {max_len}...")
 
     with torch.no_grad():
         for i in tqdm(range(max_len), desc="Tokens generados"):
