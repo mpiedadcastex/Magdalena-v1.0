@@ -189,7 +189,9 @@ class MidiProcessor:
         piano = pretty_midi.Instrument(program=0)
 
         current_time = 0.0
-        current_velocity = 0
+        # CORRECCIÓN: Velocidad por defecto a 64 (intensidad media) por si el modelo
+        # "alucina" un Note On antes de definir la velocidad.
+        current_velocity = 64
 
         # Diccionario para el rastreo de las notas activas
         # Clave: Pitch -> Valor:(start_time, velocity)
@@ -229,7 +231,7 @@ class MidiProcessor:
                     start, vel = active_notes[pitch]
 
                     # Creamos la nota MIDI y la añadimos a la secuencia
-                    note = pretty_midi.Note(pitch=pitch, start=start, end=current_time)
+                    note = pretty_midi.Note(velocity=vel, pitch=pitch, start=start, end=current_time)
                     piano.notes.append(note)
 
                     # La quitamos del diccionario de notas activas

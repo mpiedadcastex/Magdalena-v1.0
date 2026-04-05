@@ -1,5 +1,6 @@
 import os
 import torch
+import gc # Para limpiar caché de GPU durante la generación
 import numpy as np
 import pretty_midi
 import mir_eval
@@ -235,6 +236,9 @@ def evaluate():
         try:
             # Procesamos el audio
             mel = ap.compute_spectogram(audio_filename) # (n_mels, time)
+            max_frames = int(TEST_DURATION * 50) # Si hop_length es 20ms, tenemos 50 frames por segundo.
+            mel = mel[:, :max_frames] # Corte de seguridad para no saturar la GPU
+
             audio_tensor = torch.tensor(mel).unsqueeze(0).to(DEVICE) ## (1, n_mels, time)
 
             # Inferencia
@@ -256,6 +260,16 @@ def evaluate():
         except Exception as e:
             print(f"Error en archivo {idx}: {e}")
             continue
+
+        finally:
+            # Borramos explícitamente los tensores pesados de la RAM/VRAM
+            if 'audio_tensor' in locals(): del audio_tensor
+            if 'pred_tokens' in locals(): del pred_tokens
+            if 'mel' in locals(): del mel
+            
+            # Forzamos a la GPU y a Python a soltar esa memoria
+            torch.cuda.empty_cache()
+            gc.collect()
 
     # --- RESULTADOS FINALES ---
     print("\n" + "="*50)
