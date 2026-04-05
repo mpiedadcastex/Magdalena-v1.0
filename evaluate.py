@@ -118,7 +118,7 @@ def calculate_metrics(ref_midi_path, est_midi_path):
     return onset_f1, on_off_f1, vel_f1
 
 
-def predict_sampling(model, audio_tensor, midi_processor, max_len=None, temperature=1.0):
+def predict_sampling(model, audio_tensor, midi_processor, max_len=None, temperature=0.8):
     """
     Genera notas usando muestreo probabilístico (rompe bucles repetitivos).
     temperature: 
@@ -249,7 +249,7 @@ def evaluate():
             pred_midi_obj = mp.decode_midi(pred_tokens, output_path=pred_midi_path)
 
             # Calculamos las métricas
-            on_f1, on_off_f1, vel_f1 = calculate_metrics(midi_filename_gt, pred_midi_obj)
+            on_f1, on_off_f1, vel_f1 = calculate_metrics(midi_filename_gt, pred_midi_path)
 
             metrics['onset'].append(on_f1)
             metrics['onset_offset'].append(on_off_f1)
