@@ -89,7 +89,7 @@ def calculate_metrics(ref_midi_path, est_midi_path):
     # En este caso, unicamente nos importa acertar el tiempo de inicio de la nota (con la tolerancia establecida)
 
     # Calculamos P (Precision), R (Recall) y F1
-    onset_p, onset_r, onset_f1 = mir_eval.transcription.precision_recall_f1(
+    onset_p, onset_r, onset_f1, _ = mir_eval.transcription.precision_recall_f1_overlap(
         ref_intervals, ref_pitches,
         est_intervals, est_pitches,
         onset_tolerance=ONSET_TOLERANCE,
@@ -98,7 +98,7 @@ def calculate_metrics(ref_midi_path, est_midi_path):
 
     # 1º - Onset & Offset F1-Score
     # En este caso, nos importa acertar tanto el tiempo de inicio como de final de la nota
-    on_off_p, on_off_r, on_off_f1 = mir_eval.transcription.precision_recall_f1(
+    on_off_p, on_off_r, on_off_f1, _ = mir_eval.transcription.precision_recall_f1_overlap(
         ref_intervals, ref_pitches,
         est_intervals, est_pitches,
         onset_tolerance=ONSET_TOLERANCE,
@@ -107,7 +107,7 @@ def calculate_metrics(ref_midi_path, est_midi_path):
 
     # 1º - Onset & Offset F1-Score
     # Requiere acertar el tiempo de inicio y de final de la nota además de la intensidad con al que se toca
-    vel_p, vel_r, vel_f1 = mir_eval.transcription_velocity.precision_recall_f1(
+    vel_p, vel_r, vel_f1, _ = mir_eval.transcription_velocity.precision_recall_f1_overlap(
         ref_intervals, ref_pitches, ref_velocities,
         est_intervals, est_pitches, est_velocities,
         onset_tolerance=ONSET_TOLERANCE,
