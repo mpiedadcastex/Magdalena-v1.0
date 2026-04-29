@@ -7,11 +7,11 @@ import mir_eval
 import mir_eval.transcription
 import mir_eval.transcription_velocity
 from tqdm import tqdm
-import pandas as pd
 import traceback
 
 from src.data.audio_proc import AudioProcessor
 from src.data.midi_proc import MidiProcessor
+from src.data.maestro_dataset import get_dataloaders
 from src.models.transformer import PianoTranscriptionModel
 from utils import get_model_config
 
@@ -160,11 +160,12 @@ def evaluate():
     ap = AudioProcessor()
     mp = MidiProcessor()
 
+    # Cargamos los DataLoaders del split de validación
     try:
-        df = pd.read_csv(CSV_PATH)
-        val_df = df[df['split'] == 'validation']
+        _, val_loader = get_dataloaders(CSV_PATH, ROOT_DIR, ap, mp, batch_size=1)
+        val_ds = val_loader.dataset
     except Exception as e:
-        print(f"Error CSV: {e}")
+        print(f"Error al cargar el dataset: {e}")
         return
 
     cfg = get_model_config()
@@ -182,19 +183,21 @@ def evaluate():
     count = 0
     limit = 5 
 
-    for idx, row in val_df.iterrows():
+    for i, (audio_batch, _) in enumerate(val_loader):
         if limit and count >= limit: break
-        audio_filename = os.path.join(ROOT_DIR, row['audio_filename'])
-        midi_filename_gt = os.path.join(ROOT_DIR, row['midi_filename'])
 
-        if not os.path.exists(audio_filename): continue
+        # Obtenemos la ruta del MIDI de referencia desde los metadatos del dataset
+        row = val_ds.metadata.iloc[i]
+        midi_filename_gt = os.path.join(ROOT_DIR, row['midi_filename'])
         print(f"\n[{count+1}/{limit}] Procesando: {row['audio_filename']}")
 
         try:
-            mel = ap.compute_spectogram(audio_filename) 
+            # Recortamos el espectrograma a TEST_DURATION segundos
+            # audio_batch shape: (1, n_mels, time) — ya procesado por el DataLoader
             max_frames = int(TEST_DURATION * FPS)
-            if mel.shape[1] > max_frames: mel = mel[:, :max_frames]
-            audio_tensor = torch.tensor(mel).unsqueeze(0).to(DEVICE)
+            if audio_batch.shape[2] > max_frames:
+                audio_batch = audio_batch[:, :, :max_frames]
+            audio_tensor = audio_batch.to(DEVICE)
 
             pred_tokens = predict_sampling(model, audio_tensor, mp)
             pred_midi_path = os.path.join(OUTPUT_DIR, f"pred_{count}.mid")
@@ -243,7 +246,7 @@ def evaluate():
 
         except Exception as e:
             traceback.print_exc()
-            print(f"Error en archivo {idx}: {e}")
+            print(f"Error en muestra {i}: {e}")
             continue
 
     print("\n" + "="*50)

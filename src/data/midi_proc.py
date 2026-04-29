@@ -214,7 +214,6 @@ class MidiProcessor:
 
                     # Creamos la nota MIDI y la añadimos a la secuencia
                     note = pretty_midi.Note(velocity=vel, pitch=pitch, start=start, end=current_time)
-                    note = pretty_midi.Note(velocity=vel, pitch=pitch, start=start, end=current_time)
                     piano.notes.append(note)
 
                     # La quitamos del diccionario de notas activas
