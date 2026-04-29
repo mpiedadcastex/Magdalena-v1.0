@@ -14,7 +14,7 @@ from src.data.audio_proc import AudioProcessor
 from src.data.midi_proc import MidiProcessor
 from src.data.maestro_dataset import get_dataloaders
 from src.models.transformer import PianoTranscriptionModel
-from utils import get_model_config
+from utils import get_model_config, log_training_loss
 
 # --- HIPERPARÁMETROS ---
 BATCH_SIZE = 2         # Pequeño por la VRAM de Colab (con 2 ha explotado)
@@ -195,6 +195,7 @@ def train():
         avg_loss = total_loss / len(train_loader)
         print(f"Fin Epoch {epoch+1} - Loss Promedio: {avg_loss:.4f}")
         
+        log_training_loss(epoch, avg_loss, log_interval=1)
         # Definimos los nomrbes de los archivos de guardado
         current_epoch_save = epoch + 1
 
