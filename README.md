@@ -1,4 +1,4 @@
-# MPCS — Music Piano Conveyance System
+# Magdalena v1.0 — Piano Transcription System
 
 A deep-learning system that transcribes piano audio recordings into MIDI notation using a sparse Transformer encoder-decoder architecture trained on the MAESTRO dataset.
 
@@ -6,14 +6,14 @@ A deep-learning system that transcribes piano audio recordings into MIDI notatio
 
 ## What it does
 
-Given a piano `.wav` recording, MPCS outputs a `.mid` file containing the transcribed notes (pitch, onset, offset, velocity). The model is an encoder-decoder Transformer: a **Sparsifiner-based encoder** compresses the audio spectrogram, and a standard **autoregressive decoder** generates MIDI tokens one step at a time.
+Given a piano `.wav` recording, Magdalena outputs a `.mid` file containing the transcribed notes (pitch, onset, offset, velocity). The model is an encoder-decoder Transformer: a **Sparsifiner-based encoder** compresses the audio spectrogram, and a standard **autoregressive decoder** generates MIDI tokens one step at a time.
 
 ---
 
 ## Project structure
 
 ```
-MPCS/
+Magdalena/
 ├── train.py                        # Main training entry point
 ├── utils.py                        # Model config + loss logging helpers
 ├── requirements.txt                # Python dependencies
@@ -77,21 +77,22 @@ An adaptation of [Sparsifiner](https://arxiv.org/abs/2303.13755) (sparse instanc
 ### MidiDecoder
 
 Standard `nn.TransformerDecoder` with:
+
 - Causal (triangular) self-attention mask — teacher forcing during training, greedy/sampling during inference
 - Cross-attention over the encoder memory
 - Output linear layer projecting to the 311-token vocabulary
 
 ### Token vocabulary (311 tokens)
 
-| Range | Type | Count |
-|---|---|---|
-| 0 | `<pad>` | 1 |
-| 1 – 88 | Note-On (A0–C8) | 88 |
-| 89 – 176 | Note-Off | 88 |
-| 177 – 276 | Time-Shift (10 ms steps, up to 1 s per token) | 100 |
-| 277 – 308 | Velocity (32 bins, 0–127) | 32 |
-| 309 | `<sos>` | 1 |
-| 310 | `<eos>` | 1 |
+| Range     | Type                                          | Count |
+| --------- | --------------------------------------------- | ----- |
+| 0         | `<pad>`                                       | 1     |
+| 1 – 88    | Note-On (A0–C8)                               | 88    |
+| 89 – 176  | Note-Off                                      | 88    |
+| 177 – 276 | Time-Shift (10 ms steps, up to 1 s per token) | 100   |
+| 277 – 308 | Velocity (32 bins, 0–127)                     | 32    |
+| 309       | `<sos>`                                       | 1     |
+| 310       | `<eos>`                                       | 1     |
 
 ---
 
@@ -116,7 +117,7 @@ Standard `nn.TransformerDecoder` with:
 
 ```bash
 git clone <repo-url>
-cd MPCS
+cd Magdalena
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
@@ -143,16 +144,16 @@ python train.py
 
 Key hyperparameters (top of `train.py`):
 
-| Parameter | Default | Notes |
-|---|---|---|
-| `BATCH_SIZE` | 2 | Effective batch = 16 via gradient accumulation |
-| `GRAD_ACCUMULATION_STEPS` | 8 | |
-| `LEARNING_RATE` | 1e-4 | AdamW |
-| `EPOCHS` | 80 | |
-| `embed_dim` | 256 | Increase to 512 if VRAM allows |
-| `num_encoder_layers` | 4 | Sparsifiner blocks |
-| `num_decoder_layers` | 4 | Transformer decoder blocks |
-| `nhead` | 4 | Attention heads |
+| Parameter                 | Default | Notes                                          |
+| ------------------------- | ------- | ---------------------------------------------- |
+| `BATCH_SIZE`              | 2       | Effective batch = 16 via gradient accumulation |
+| `GRAD_ACCUMULATION_STEPS` | 8       |                                                |
+| `LEARNING_RATE`           | 1e-4    | AdamW                                          |
+| `EPOCHS`                  | 80      |                                                |
+| `embed_dim`               | 256     | Increase to 512 if VRAM allows                 |
+| `num_encoder_layers`      | 4       | Sparsifiner blocks                             |
+| `num_decoder_layers`      | 4       | Transformer decoder blocks                     |
+| `nhead`                   | 4       | Attention heads                                |
 
 Checkpoints are saved after each epoch under `checkpoints/model/` and `checkpoints/optimizer/`. Training automatically resumes from the latest checkpoint if one is found.
 
@@ -182,20 +183,21 @@ python src/tests/test_full_model.py
 
 ## Audio processing parameters
 
-| Parameter | Value | Rationale |
-|---|---|---|
-| Sample rate | 16 000 Hz | Standard for music ML |
-| FFT window | 2048 samples (128 ms) | Frequency resolution |
-| Hop length | 320 samples (20 ms) | 50 fps temporal resolution |
-| Mel bands | 229 | ~1–2 bands per semitone across 88 piano keys |
-| Frequency range | 31 – 8 000 Hz | Covers piano fundamentals |
-| Normalization | (dB + 60) / 60 | Maps [−60, 0] dB → [0, 1] |
+| Parameter       | Value                 | Rationale                                    |
+| --------------- | --------------------- | -------------------------------------------- |
+| Sample rate     | 16 000 Hz             | Standard for music ML                        |
+| FFT window      | 2048 samples (128 ms) | Frequency resolution                         |
+| Hop length      | 320 samples (20 ms)   | 50 fps temporal resolution                   |
+| Mel bands       | 229                   | ~1–2 bands per semitone across 88 piano keys |
+| Frequency range | 31 – 8 000 Hz         | Covers piano fundamentals                    |
+| Normalization   | (dB + 60) / 60        | Maps [−60, 0] dB → [0, 1]                    |
 
 ---
 
 ## Current state
 
 **Complete**
+
 - Full training pipeline with gradient accumulation, mixed precision (AMP), gradient clipping, and checkpoint resume
 - MIDI tokenizer with full encode/decode round-trip
 - Sparsifiner encoder adapted for variable-length audio
@@ -204,6 +206,7 @@ python src/tests/test_full_model.py
 - Unit and integration tests for each component
 
 **Work in progress / Known limitations**
+
 - Dataset paths are hardcoded to Google Drive paths in `train.py` and `evaluate.py` — must be updated for local runs
 - `MAX_AUDIO_FRAMES = 4096` (~82 s at 50 fps) and `MAX_MIDI_TOKENS = 1500` are hard truncation limits for long pieces
 - `encoder.py` (standard `AudioEncoder`) is an unused baseline; the active encoder is `AudioSparsifinerEncoder`
@@ -215,14 +218,14 @@ python src/tests/test_full_model.py
 
 ## Dependencies
 
-| Library | Purpose |
-|---|---|
-| `torch` / `torchaudio` | Deep learning framework |
-| `einops` | Tensor dimension manipulation in Sparsifiner |
-| `librosa` | Log-mel spectrogram extraction |
-| `pretty_midi` | MIDI parsing and synthesis |
-| `mir_eval` | Standard music transcription evaluation metrics |
-| `pandas` | MAESTRO metadata CSV handling |
-| `tqdm` | Training progress bars |
+| Library                | Purpose                                         |
+| ---------------------- | ----------------------------------------------- |
+| `torch` / `torchaudio` | Deep learning framework                         |
+| `einops`               | Tensor dimension manipulation in Sparsifiner    |
+| `librosa`              | Log-mel spectrogram extraction                  |
+| `pretty_midi`          | MIDI parsing and synthesis                      |
+| `mir_eval`             | Standard music transcription evaluation metrics |
+| `pandas`               | MAESTRO metadata CSV handling                   |
+| `tqdm`                 | Training progress bars                          |
 
 See `requirements.txt` for the full version-pinned list.

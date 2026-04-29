@@ -14,7 +14,7 @@ from utils import get_model_config
 
 # Configuración
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-EPOCHS_COMPLETED = 10
+EPOCHS_COMPLETED = 51
 CHECKPOINT_PATH = f"/content/drive/MyDrive/TFG_Project/MPCS/checkpoints/model/model_epoch_{EPOCHS_COMPLETED}.pth"    # Ajusta a la última versión del entrenamiento
 CSV_PATH = '/content/drive/MyDrive/TFG_Data/maestro-v3.0.0/maestro-v3.0.0_metadata.csv'
 ROOT_DIR = '/content/drive/MyDrive/TFG_Data/maestro-v3.0.0/maestro-v3.0.0'

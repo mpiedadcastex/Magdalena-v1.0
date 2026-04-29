@@ -194,6 +194,8 @@ def train():
 
         avg_loss = total_loss / len(train_loader)
         print(f"Fin Epoch {epoch+1} - Loss Promedio: {avg_loss:.4f}")
+
+        log_training_loss(epoch, avg_loss, log_interval=1)
         
         log_training_loss(epoch, avg_loss, log_interval=1)
         # Definimos los nomrbes de los archivos de guardado
