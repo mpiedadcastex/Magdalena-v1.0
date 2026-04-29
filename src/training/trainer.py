@@ -61,7 +61,7 @@ class Trainer:
             )
 
             # 2. Padding de Audio (Espectrogramas Mel)
-            # El espectrograma es 3D: [1, n_mels, time].Lo pademaos en la dimension de tiempo (la ultima)
+            # El espectrograma es 3D: [1, n_mels, time].Lo padeamos en la dimension de tiempo (la ultima)
             max_time = max(a.shape[-1] for a in audios)
             audios_padded = torch.zeros(len(audios), audios[0].shape[0], audios[0].shape[1], max_time)
             for i, a in enumerate(audios):

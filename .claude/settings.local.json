@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx skills@latest *)",
+      "Bash(npx skills *)"
+    ]
+  }
+}
