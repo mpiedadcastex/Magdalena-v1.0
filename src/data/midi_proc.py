@@ -171,7 +171,9 @@ class MidiProcessor:
         piano = pretty_midi.Instrument(program=0)
 
         current_time = 0.0
-        current_velocity = 100 # Valor por defecto seguro
+        # CORRECCIÓN: Velocidad por defecto a 64 (intensidad media) por si el modelo
+        # "alucina" un Note On antes de definir la velocidad.
+        current_velocity = 64
 
         # Diccionario para el rastreo de las notas activas
         # Clave: Pitch -> Valor:(start_time, velocity)

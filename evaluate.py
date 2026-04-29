@@ -3,8 +3,11 @@ import torch
 import numpy as np
 import pretty_midi
 import mir_eval
+# Imports explícitos necesarios
+import mir_eval.transcription
+import mir_eval.transcription_velocity
 from tqdm import tqdm
-import pandas as pd
+import traceback
 
 from src.data.audio_proc import AudioProcessor
 from src.data.midi_proc import MidiProcessor
@@ -12,20 +15,26 @@ from src.data.maestro_dataset import get_dataloaders
 from src.models.transformer import PianoTranscriptionModel
 from utils import get_model_config
 
-# Configuración
+# --- CONFIGURACIÓN ---
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-EPOCHS_COMPLETED = 51
-CHECKPOINT_PATH = f"/content/drive/MyDrive/TFG_Project/MPCS/checkpoints/model/model_epoch_{EPOCHS_COMPLETED}.pth"    # Ajusta a la última versión del entrenamiento
+
+# Rutas
+EPOCHS_COMPLETED = 100 
+CHECKPOINT_PATH = f"/content/drive/MyDrive/TFG_Project/MPCS/checkpoints/model/model_epoch_{EPOCHS_COMPLETED}.pth"
 CSV_PATH = '/content/drive/MyDrive/TFG_Data/maestro-v3.0.0/maestro-v3.0.0_metadata.csv'
 ROOT_DIR = '/content/drive/MyDrive/TFG_Data/maestro-v3.0.0/maestro-v3.0.0'
 OUTPUT_DIR = "evaluation_results"
 
-# Tolerancias
-ONSET_TOLERANCE = 0.05      # 50ms
-OFFSET_RATIO = 0.2          # 20% de la duración de la nota
-VELOCITY_TOLERANCE = 0.1    # Margen de error en velocidad (normalizado escala 0-1)
+# Configuración de Recorte
+TEST_DURATION = 30  # 30 segundos
+FPS = 50            
 
-def midi_to_intervals(midi_path):
+# Tolerancias
+ONSET_TOLERANCE = 0.05      
+OFFSET_RATIO = 0.2          
+VELOCITY_TOLERANCE = 0.1    
+
+def midi_to_intervals(midi_path, max_time=None):
     """
     Lee un archivo MIDI y extrae:
         - Intervalos
@@ -36,33 +45,29 @@ def midi_to_intervals(midi_path):
         pm = pretty_midi.PrettyMIDI(midi_path)
     except Exception as e:
         print(f"Error {e} al leer el archivo MIDI: {midi_path}")
-        return None, None, None
+        return np.array([]), np.array([]), np.array([])
     
     # Inicializamos las listas en las que guardaremos los resultados
     intervals = []
     pitches = []
     velocities = []
 
+    # Actualizamos las listas con los valores de las notas
     for instrument in pm.instruments:
-
-        # Actualizamos las listas con los valores de las notas 
         for note in instrument.notes:
+            if max_time is not None and note.start > max_time:
+                continue
             intervals.append([note.start, note.end])
             pitches.append(note.pitch)
             velocities.append(note.velocity)
 
-        # Comprobación: Si no hay notas devolvemos los objetos vacios y lanzamos un mensaje
-        if not intervals:
-            print(f"No se detectaron notas")
-            return np.array([]), np.array([]), np.array([])
-        
-        # Devolvemos los valores
-        return (
-            np.array(intervals),
-            np.array(pitches),
-            np.array(velocities)
-        )
-    
+    # Comprobación: Si no hay notas devolvemos los objetos vacios y lanzamos un mensaje
+    if not intervals:
+        return np.array([]), np.array([]), np.array([])
+
+    # Devolvemos los valores   
+    return (np.array(intervals), np.array(pitches), np.array(velocities))
+
 def calculate_metrics(ref_midi_path, est_midi_path):
     """
     Calculamos las tres métricas que hemos establecido:
@@ -81,7 +86,7 @@ def calculate_metrics(ref_midi_path, est_midi_path):
     # En este caso, unicamente nos importa acertar el tiempo de inicio de la nota (con la tolerancia establecida)
 
     # Calculamos P (Precision), R (Recall) y F1
-    onset_p, onset_r, onset_f1 = mir_eval.transcription.precision_recall_f1(
+    onset_p, onset_r, onset_f1, _ = mir_eval.transcription.precision_recall_f1_overlap(
         ref_intervals, ref_pitches,
         est_intervals, est_pitches,
         onset_tolerance=ONSET_TOLERANCE,
@@ -90,7 +95,7 @@ def calculate_metrics(ref_midi_path, est_midi_path):
 
     # 1º - Onset & Offset F1-Score
     # En este caso, nos importa acertar tanto el tiempo de inicio como de final de la nota
-    on_off_p, on_off_r, on_off_f1 = mir_eval.transcription.precision_recall_f1(
+    on_off_p, on_off_r, on_off_f1, _ = mir_eval.transcription.precision_recall_f1_overlap(
         ref_intervals, ref_pitches,
         est_intervals, est_pitches,
         onset_tolerance=ONSET_TOLERANCE,
@@ -99,7 +104,7 @@ def calculate_metrics(ref_midi_path, est_midi_path):
 
     # 1º - Onset & Offset F1-Score
     # Requiere acertar el tiempo de inicio y de final de la nota además de la intensidad con al que se toca
-    vel_p, vel_r, vel_f1 = mir_eval.transcription_velocity.precision_recall_f1(
+    vel_p, vel_r, vel_f1, _ = mir_eval.transcription_velocity.precision_recall_f1_overlap(
         ref_intervals, ref_pitches, ref_velocities,
         est_intervals, est_pitches, est_velocities,
         onset_tolerance=ONSET_TOLERANCE,
@@ -109,138 +114,147 @@ def calculate_metrics(ref_midi_path, est_midi_path):
 
     return onset_f1, on_off_f1, vel_f1
 
-
-def predict_greedy(model, audio_tensor, midi_processor:MidiProcessor, max_len=2048):
+def predict_sampling(model, audio_tensor, midi_processor, max_len=None, temperature=0.8):
     """
-    Generación nota a nota (Greedy)
+    Genera notas usando muestreo probabilístico (rompe bucles repetitivos).
+    temperature: 
+      - 1.0 = Normal
+      - < 1.0 (ej 0.8) = Más conservador (menos errores, más repetitivo)
+      - > 1.0 (ej 1.2) = Más creativo (más variedad, más riesgo de error)
     """
     model.eval()
-
-    # Establecemos los tokens especiales de inicio y fin con los atributos del procesador midi
     sos = midi_processor.token_sos
     eos = midi_processor.token_eos
-
-    # Iniciamos la secuencia con <SOS>
+    
+    # Asegúrate de que DEVICE está definido en tu script (ej. DEVICE = 'cuda' si usas GPU)
     generated_sequence = torch.tensor([[sos]], dtype=torch.long).to(DEVICE)
 
+    # Calculamos la estimación basada en la duración del audio
+    if max_len is None: max_len = int(TEST_DURATION * 35)
+
+    print(f"Generando con Sampling (T={temperature})...")
+
     with torch.no_grad():
-        for _ in range(max_len):
-            # Forward pass
-            # Ponemos tgt_padding_mask a None ya que no es necesaria con un batch size = 1
+        for i in tqdm(range(max_len)):
             logits = model(audio_tensor, generated_sequence, tgt_padding_mask=None)
+            last_logits = logits[:, -1, :] / temperature  # Aplicar temperatura
+            
+            # Convertir logits a probabilidades
+            probs = torch.softmax(last_logits, dim=-1)
+            
+            # Elegir el siguiente token basándose en la probabilidad (tira los dados)
+            predicted_token = torch.multinomial(probs, num_samples=1)
 
-            # Obtener última predicción
-            last_token_logits = logits[:, -1, :]
-            predicted_token = torch.argmax(last_token_logits, dim=-1).unsqueeze(0)
-
-            # Comprobamos si es el fin de la secuencia
             if predicted_token.item() == eos:
                 break
             
-            # Concatenamos en la secuencia
             generated_sequence = torch.cat([generated_sequence, predicted_token], dim=1)
+            if i % 50 == 0: torch.cuda.empty_cache()
 
     return generated_sequence.squeeze().cpu().numpy()
 
-
 def evaluate():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-    print(f"--- INICIANDO EVALUACIÓN ---")
-    print(f"Modelo: {CHECKPOINT_PATH}")
-
-    # 1 - Inicializamos los procesadores
-    ap= AudioProcessor()
+    print(f"--- INICIANDO EVALUACIÓN (Recorte: {TEST_DURATION}s) ---")
+    
+    ap = AudioProcessor()
     mp = MidiProcessor()
 
-    # 2 - Cargamos el split de validación del dataset
+    # Cargamos los DataLoaders del split de validación
     try:
-        df = pd.read_csv(CSV_PATH)
-        val_df = df[df['split'] == 'validation']
-        print(f"Total de archivos en Validación: {len(val_df)}")
+        _, val_loader = get_dataloaders(CSV_PATH, ROOT_DIR, ap, mp, batch_size=1)
+        val_ds = val_loader.dataset
     except Exception as e:
-        print(f"Error al cargar el CSV: {CSV_PATH}")
+        print(f"Error al cargar el dataset: {e}")
+        return
 
-    # 3 - Cargamos el Modelo
     cfg = get_model_config()
-
-    # Copiamos los hiperparámetros que utilizamos en el train del modelo
-    model = PianoTranscriptionModel(
-        midi_processor=mp,
-        encoder_cfg=cfg,
-        embed_dim=256,       
-        num_encoder_layers=4,
-        num_decoder_layers=4,
-        nhead=4
-    ).to(DEVICE)
+    model = PianoTranscriptionModel(midi_processor=mp, encoder_cfg=cfg, embed_dim=256, num_encoder_layers=4, num_decoder_layers=4, nhead=4).to(DEVICE)
 
     try:
-        # Usamos map_location por si hacemos la inferencia en CPU para evitar errores
         model.load_state_dict(torch.load(CHECKPOINT_PATH, map_location=DEVICE))
         model.eval()
-        print(f"Modelo cargado correctamente.")
+        print(f"Modelo cargado.")
     except Exception as e:
-        print(f"Ocurrió un error al cargar los pesos: {e}")
+        print(f"Error pesos: {e}")
         return
     
-    # Diccionario para las métricas acumuladas
-    metrics = {
-        'onset': [], 
-        'onset_offset': [],
-        'velocity': []
-        }
-    
-    # Bucle de evaluación
-    # Establecemos un límite para la realizacion de pruebas rápidas,
-    # si queremos realizar una evaluación completa simplemente lo ponemos a None
+    metrics = {'onset': [], 'onset_offset': [], 'velocity': []}
     count = 0
-    limit = 10
+    limit = 5 
 
-    for idx, row in tqdm(val_df.iterrows(), total=len(val_df) if limit is None else limit):
+    for i, (audio_batch, _) in enumerate(val_loader):
         if limit and count >= limit: break
 
-        audio_filename = os.path.join(ROOT_DIR, row['audio_filename'])
+        # Obtenemos la ruta del MIDI de referencia desde los metadatos del dataset
+        row = val_ds.metadata.iloc[i]
         midi_filename_gt = os.path.join(ROOT_DIR, row['midi_filename'])
-
-        if not os.path.exists(audio_filename):
-            print(f"Audio no encontrado: {audio_filename}")
-            continue
+        print(f"\n[{count+1}/{limit}] Procesando: {row['audio_filename']}")
 
         try:
-            # Procesamos el audio
-            mel = ap.compute_spectogram(audio_filename) # (n_mels, time)
-            audio_tensor = torch.tensor(mel).unsqueeze(0).to(DEVICE) ## (1, n_mels, time)
+            # Recortamos el espectrograma a TEST_DURATION segundos
+            # audio_batch shape: (1, n_mels, time) — ya procesado por el DataLoader
+            max_frames = int(TEST_DURATION * FPS)
+            if audio_batch.shape[2] > max_frames:
+                audio_batch = audio_batch[:, :, :max_frames]
+            audio_tensor = audio_batch.to(DEVICE)
 
-            # Inferencia
-            pred_tokens = predict_greedy(model, audio_tensor, mp)
-
-            # Decodificamos a MIDI
+            pred_tokens = predict_sampling(model, audio_tensor, mp)
             pred_midi_path = os.path.join(OUTPUT_DIR, f"pred_{count}.mid")
-            pred_midi_obj = mp.decode_midi(pred_tokens, output_path=pred_midi_path)
+            mp.decode_midi(pred_tokens, output_path=pred_midi_path)
 
-            # Calculamos las métricas
-            on_f1, on_off_f1, vel_f1 = calculate_metrics(midi_filename_gt, pred_midi_obj)
+            ref_ints, ref_ps, ref_vels = midi_to_intervals(midi_filename_gt, max_time=TEST_DURATION)
+            est_ints, est_ps, est_vels = midi_to_intervals(pred_midi_path, max_time=TEST_DURATION)
 
+            if est_ints.size == 0 or ref_ints.size == 0:
+                print("  -> Advertencia: No se detectaron notas.")
+                continue
+
+            # --- CORRECCIÓN DE NOMBRES DE FUNCIÓN Y UNPACKING ---
+            
+            # 1. Onset F1 (Usamos overlap pero ignoramos offset con offset_ratio=None si es posible, o usamos onset_precision...)
+            # La forma más segura en mir_eval moderno:
+            _, _, on_f1, _ = mir_eval.transcription.precision_recall_f1_overlap(
+                ref_intervals=ref_ints, ref_pitches=ref_ps,
+                est_intervals=est_ints, est_pitches=est_ps,
+                onset_tolerance=ONSET_TOLERANCE,
+                offset_ratio=None 
+            )
+            
+            # 2. Onset & Offset F1
+            _, _, on_off_f1, _ = mir_eval.transcription.precision_recall_f1_overlap(
+                ref_intervals=ref_ints, ref_pitches=ref_ps,
+                est_intervals=est_ints, est_pitches=est_ps,
+                onset_tolerance=ONSET_TOLERANCE,
+                offset_ratio=OFFSET_RATIO
+            )
+
+            # 3. Velocity F1 (Usamos el submódulo transcription_velocity)
+            _, _, vel_f1, _ = mir_eval.transcription_velocity.precision_recall_f1_overlap(
+                ref_intervals=ref_ints, ref_pitches=ref_ps, ref_velocities=ref_vels,
+                est_intervals=est_ints, est_pitches=est_ps, est_velocities=est_vels,
+                onset_tolerance=ONSET_TOLERANCE,
+                offset_ratio=OFFSET_RATIO,
+                velocity_tolerance=VELOCITY_TOLERANCE
+            )
+
+            print(f"  -> Onset F1: {on_f1:.4f} | Onset+Off: {on_off_f1:.4f} | Vel: {vel_f1:.4f}")
             metrics['onset'].append(on_f1)
             metrics['onset_offset'].append(on_off_f1)
             metrics['velocity'].append(vel_f1)
-
             count += 1
 
         except Exception as e:
-            print(f"Error en archivo {idx}: {e}")
+            traceback.print_exc()
+            print(f"Error en muestra {i}: {e}")
             continue
 
-    # --- RESULTADOS FINALES ---
     print("\n" + "="*50)
     print("RESULTADOS PROMEDIO (F1-Score)")
-    print("="*50)
     if len(metrics['onset']) > 0:
         print(f"1. Onset:                  {np.mean(metrics['onset']):.4f}")
         print(f"2. Onset & Offset:         {np.mean(metrics['onset_offset']):.4f}")
         print(f"3. Onset, Offset & Velocity: {np.mean(metrics['velocity']):.4f}")
-        print("-" * 50)
-        print(f"Evaluados: {len(metrics['onset'])} archivos.")
     else:
         print("No se pudieron calcular métricas.")
     print("="*50)
