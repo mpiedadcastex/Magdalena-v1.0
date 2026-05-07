@@ -13,21 +13,27 @@ MAX_AUDIO_FRAMES = 4096  # Límite de seguridad para Audio (~1,5 min)
 MAX_MIDI_TOKENS = 1500
 
 class MaestroDataset(Dataset):
-    def __init__(self, csv_file, root_dir, audio_processor: AudioProcessor, midi_processor: MidiProcessor, split='train'):
+    def __init__(self, csv_file, root_dir, audio_processor: AudioProcessor, midi_processor: MidiProcessor, split='train', max_samples=None):
         """
         Dataset para el conjunto MAESTRO.
-        
+
         Args:
             csv_file (str): ruta al csv de los metadatos de MAESTRO
             root_dir (str): Directorio raíz del dataset
             audio_processor (AudioProcessor): Procesador de audio
             midi_processor (MidiProcessor): Procesador de midi
             split (str): 'train', 'validation' o 'test'
-            
+            max_samples (int | None): Límite de muestras a usar. None = todas.
+
         """
         # Cargamos el csv y filtramos por el split seleccionado
         self.metadata = pd.read_csv(csv_file)
-        self.metadata = self.metadata[self.metadata['split'] == split ]
+        self.metadata = self.metadata[self.metadata['split'] == split]
+
+        if max_samples is not None:
+            self.metadata = self.metadata.sample(
+                n=min(max_samples, len(self.metadata)), random_state=42
+            ).reset_index(drop=True)
 
         self.root_dir = root_dir
 
@@ -95,13 +101,22 @@ def collate_fn(batch):
     return spectrograms_padded, midis_padded
     
 
-def get_dataloaders(csv_path, root_dir, audio_processor, midi_processor, batch_size=1):
+def get_dataloaders(csv_path, root_dir, audio_processor, midi_processor, batch_size=1, max_samples_train=None, max_samples_val=None):
     """
-    Función para crear los DataLoaders de Train y Validation pasando los procesadores configurados
+    Función para crear los DataLoaders de Train y Validation pasando los procesadores configurados.
+
+    Args:
+        csv_path (str): Ruta al CSV de metadatos de MAESTRO
+        root_dir (str): Directorio raíz del dataset
+        audio_processor (AudioProcessor): Procesador de audio
+        midi_processor (MidiProcessor): Procesador de MIDI
+        batch_size (int): Tamaño del batch
+        max_samples_train (int | None): Límite de muestras de entrenamiento. None = todas.
+        max_samples_val (int | None): Límite de muestras de validación. None = todas.
     """
     # Se crean los Datasets pasando las instancias
-    train_ds = MaestroDataset(csv_path, root_dir, audio_processor, midi_processor, split='train')
-    val_ds = MaestroDataset(csv_path, root_dir, audio_processor, midi_processor, split='validation')
+    train_ds = MaestroDataset(csv_path, root_dir, audio_processor, midi_processor, split='train', max_samples=max_samples_train)
+    val_ds = MaestroDataset(csv_path, root_dir, audio_processor, midi_processor, split='validation', max_samples=max_samples_val)
 
     # Creamos los Loaders
     train_loader = DataLoader(

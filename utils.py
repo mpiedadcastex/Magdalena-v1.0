@@ -2,7 +2,7 @@ import os
 from datetime import datetime
 from types import SimpleNamespace
 
-def log_training_loss(epoch, avg_loss, log_interval=1, base_path="/content/drive/MyDrive/TFG_Project/MPCS/checkpoints/"):
+def log_training_loss(epoch, avg_loss, log_interval=1, base_path="/content/drive/MyDrive/TFG_Project/MPCS/checkpoints/v1_baseline/"):
     """
     Registra el Loss promedio en un archivo de texto con formato elegante.
     
