@@ -79,7 +79,21 @@ def train(cfg):
     MODEL_CHECKPOINT     = os.path.join(cfg.CHECKPOINT_DIR, "model")
     OPTIMIZER_CHECKPOINT = os.path.join(cfg.CHECKPOINT_DIR, "optimizer")
 
-    print(f"[{cfg.EXP_NAME}] Usando dispositivo: {DEVICE}")
+    print("=" * 60)
+    print(f"  VERSIÓN : {cfg.EXP_NAME}")
+    print(f"  OBJETIVO: {cfg.EXP_DESCRIPTION}")
+    print(f"  DEVICE  : {DEVICE}")
+    print("-" * 60)
+    print(f"  [DATOS]")
+    print(f"    CSV        : {cfg.CSV_PATH}")
+    print(f"    Root dir   : {cfg.ROOT_DIR}")
+    print(f"    Muestras   : train={cfg.MAX_SAMPLES_TRAIN or 'todas'} | val={cfg.MAX_SAMPLES_VAL or 'todas'}")
+    print(f"  [CHECKPOINTS]")
+    print(f"    Modelos    : {os.path.abspath(MODEL_CHECKPOINT)}")
+    print(f"    Optimizador: {os.path.abspath(OPTIMIZER_CHECKPOINT)}")
+    print(f"  [LOGS]")
+    print(f"    Loss log   : {cfg.DRIVE_LOG_PATH}")
+    print("=" * 60)
 
     # Si no existen las carpetas de guardado de checkpoints las creamos
     # MODELO
