@@ -52,8 +52,8 @@ def load_config(exp_name=None):
             EXP_DESCRIPTION="Entrenamiento de producción completo con dataset MAESTRO.",
             MAX_SAMPLES_TRAIN=None,
             MAX_SAMPLES_VAL=None,
-            BATCH_SIZE=16,                 # Optimizado para GPU A100 40 GB
-            GRAD_ACCUMULATION_STEPS=4,     # Batch efectivo = 64
+            BATCH_SIZE=8,                  # Limitado por la atención del Sparsifiner
+            GRAD_ACCUMULATION_STEPS=4,     # Batch efectivo = 32
             LEARNING_RATE=1e-4,            # Estándar para Transformers
             EPOCHS=80,
             EMBED_DIM=256,                 # 256 para probar, sube a 512 si tienes VRAM

@@ -11,8 +11,8 @@ MAX_SAMPLES_TRAIN = 150
 MAX_SAMPLES_VAL   = 30
 
 # --- Hiperparámetros de entrenamiento (igual que v1_baseline) ---
-BATCH_SIZE              = 16
-GRAD_ACCUMULATION_STEPS = 4   # Batch efectivo = 64 (optimizado para GPU A100 40 GB)
+BATCH_SIZE              = 8
+GRAD_ACCUMULATION_STEPS = 4   # Batch efectivo = 32 (limitado por la atención del Sparsifiner)
 LEARNING_RATE           = 1e-4
 EPOCHS                  = 1000
 
