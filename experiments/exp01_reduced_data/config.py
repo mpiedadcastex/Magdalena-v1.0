@@ -14,7 +14,7 @@ MAX_SAMPLES_VAL   = 30
 BATCH_SIZE              = 2
 GRAD_ACCUMULATION_STEPS = 8   # Batch efectivo = 16
 LEARNING_RATE           = 1e-4
-EPOCHS                  = 80
+EPOCHS                  = 1000
 
 # --- Arquitectura del modelo (igual que v1_baseline) ---
 EMBED_DIM          = 256
