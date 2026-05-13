@@ -14,10 +14,10 @@ MAX_AUDIO_FRAMES = 2048   # baseline: 4096
 MAX_MIDI_TOKENS  = 750    # baseline: 1500
 
 # --- Hiperparámetros de entrenamiento (igual que v1_baseline) ---
-BATCH_SIZE              = 2
-GRAD_ACCUMULATION_STEPS = 8   # Batch efectivo = 16
+BATCH_SIZE              = 8
+GRAD_ACCUMULATION_STEPS = 4   # Batch efectivo = 32 (limitado por la atención del Sparsifiner)
 LEARNING_RATE           = 1e-4
-EPOCHS                  = 80
+EPOCHS                  = 1000
 
 # --- Arquitectura del modelo (igual que v1_baseline) ---
 EMBED_DIM          = 256
