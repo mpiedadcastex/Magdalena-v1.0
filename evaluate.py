@@ -1,4 +1,5 @@
 import os
+import tempfile
 import torch
 import numpy as np
 import pretty_midi
@@ -114,7 +115,7 @@ def calculate_metrics(ref_midi_path, est_midi_path):
 
     return onset_f1, on_off_f1, vel_f1
 
-def predict_sampling(model, audio_tensor, midi_processor, max_len=None, temperature=0.8):
+def predict_sampling(model, audio_tensor, midi_processor, max_len=None, temperature=0.8, device=None):
     """
     Genera notas usando muestreo probabilístico (rompe bucles repetitivos).
     temperature: 
@@ -125,9 +126,9 @@ def predict_sampling(model, audio_tensor, midi_processor, max_len=None, temperat
     model.eval()
     sos = midi_processor.token_sos
     eos = midi_processor.token_eos
-    
-    # Asegúrate de que DEVICE está definido en tu script (ej. DEVICE = 'cuda' si usas GPU)
-    generated_sequence = torch.tensor([[sos]], dtype=torch.long).to(DEVICE)
+
+    _device = device if device is not None else DEVICE
+    generated_sequence = torch.tensor([[sos]], dtype=torch.long).to(_device)
 
     # Calculamos la estimación basada en la duración del audio
     if max_len is None: max_len = int(TEST_DURATION * 35)
@@ -258,6 +259,98 @@ def evaluate():
     else:
         print("No se pudieron calcular métricas.")
     print("="*50)
+
+def evaluate_model(model, val_loader, mp, device, writer=None, epoch=None, limit=5):
+    """
+    Evalúa el modelo sobre un subconjunto de validación y loggea los F1 a TensorBoard.
+    Pensada para ser llamada desde el bucle de entrenamiento cada N epochs.
+
+    Args:
+        model: modelo en memoria (ya en el device correcto).
+        val_loader: DataLoader de validación.
+        mp: instancia de MidiProcessor.
+        device: torch.device activo.
+        writer: SummaryWriter de TensorBoard (opcional).
+        epoch: epoch actual, base 0 (opcional, para el log).
+        limit: número de muestras de validación a evaluar.
+    """
+    val_ds = val_loader.dataset
+    model.eval()
+    metrics = {'onset': [], 'onset_offset': [], 'velocity': []}
+    count = 0
+
+    print(f"\n[Eval] Calculando métricas sobre {limit} muestras de validación...")
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        for i, (audio_batch, _) in enumerate(val_loader):
+            if count >= limit:
+                break
+
+            row = val_ds.metadata.iloc[i]
+            midi_filename_gt = os.path.join(val_ds.root_dir, row['midi_filename'])
+
+            try:
+                max_frames = int(TEST_DURATION * FPS)
+                if audio_batch.shape[2] > max_frames:
+                    audio_batch = audio_batch[:, :, :max_frames]
+                audio_tensor = audio_batch.to(device)
+
+                pred_tokens = predict_sampling(model, audio_tensor, mp, device=device)
+                pred_midi_path = os.path.join(tmp_dir, f"pred_{count}.mid")
+                mp.decode_midi(pred_tokens, output_path=pred_midi_path)
+
+                ref_ints, ref_ps, ref_vels = midi_to_intervals(midi_filename_gt, max_time=TEST_DURATION)
+                est_ints, est_ps, est_vels = midi_to_intervals(pred_midi_path, max_time=TEST_DURATION)
+
+                if est_ints.size == 0 or ref_ints.size == 0:
+                    print(f"  [Eval] Muestra {i}: sin notas detectadas, saltando.")
+                    continue
+
+                _, _, on_f1, _ = mir_eval.transcription.precision_recall_f1_overlap(
+                    ref_intervals=ref_ints, ref_pitches=ref_ps,
+                    est_intervals=est_ints, est_pitches=est_ps,
+                    onset_tolerance=ONSET_TOLERANCE, offset_ratio=None
+                )
+                _, _, on_off_f1, _ = mir_eval.transcription.precision_recall_f1_overlap(
+                    ref_intervals=ref_ints, ref_pitches=ref_ps,
+                    est_intervals=est_ints, est_pitches=est_ps,
+                    onset_tolerance=ONSET_TOLERANCE, offset_ratio=OFFSET_RATIO
+                )
+                _, _, vel_f1, _ = mir_eval.transcription_velocity.precision_recall_f1_overlap(
+                    ref_intervals=ref_ints, ref_pitches=ref_ps, ref_velocities=ref_vels,
+                    est_intervals=est_ints, est_pitches=est_ps, est_velocities=est_vels,
+                    onset_tolerance=ONSET_TOLERANCE, offset_ratio=OFFSET_RATIO,
+                    velocity_tolerance=VELOCITY_TOLERANCE
+                )
+
+                metrics['onset'].append(on_f1)
+                metrics['onset_offset'].append(on_off_f1)
+                metrics['velocity'].append(vel_f1)
+                count += 1
+                print(f"  [Eval] {count}/{limit} | Onset: {on_f1:.4f} | On+Off: {on_off_f1:.4f} | Vel: {vel_f1:.4f}")
+
+            except Exception as e:
+                print(f"  [Eval] Error en muestra {i}: {e}")
+                continue
+
+    if count > 0:
+        avg_onset  = np.mean(metrics['onset'])
+        avg_on_off = np.mean(metrics['onset_offset'])
+        avg_vel    = np.mean(metrics['velocity'])
+        epoch_num  = (epoch + 1) if epoch is not None else '?'
+        print(f"[Eval] Epoch {epoch_num} | Onset F1: {avg_onset:.4f} | On+Off F1: {avg_on_off:.4f} | Vel F1: {avg_vel:.4f}\n")
+
+        if writer is not None and epoch is not None:
+            writer.add_scalar('F1/onset',          avg_onset,  epoch + 1)
+            writer.add_scalar('F1/onset_offset',   avg_on_off, epoch + 1)
+            writer.add_scalar('F1/velocity',       avg_vel,    epoch + 1)
+    else:
+        print("[Eval] No se pudieron calcular métricas en esta evaluación.\n")
+
+    model.train()
+    torch.cuda.empty_cache()
+    return metrics
+
 
 if __name__ == "__main__":
     evaluate()

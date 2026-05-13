@@ -13,6 +13,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 from tqdm import tqdm # Barra de progreso
+from torch.utils.tensorboard import SummaryWriter
 
 # Tus módulos
 from src.data.audio_proc import AudioProcessor
@@ -20,6 +21,7 @@ from src.data.midi_proc import MidiProcessor
 from src.data.maestro_dataset import get_dataloaders
 from src.models.transformer import PianoTranscriptionModel
 from utils import get_model_config, log_training_loss
+from evaluate import evaluate_model
 
 
 # --- CONFIGURACIÓN ---
@@ -88,12 +90,14 @@ def train(cfg):
     # OPTIMIZER
     os.makedirs(OPTIMIZER_CHECKPOINT, exist_ok=True)
 
+    writer = SummaryWriter(log_dir=cfg.CHECKPOINT_DIR)
+
     # 1. PREPARAR DATOS
     print("Cargando datos...")
     ap = AudioProcessor(fmax=8000, n_mels=229)
     mp = MidiProcessor() # Asegúrate que tu MidiProcessor tenga vocab_size
 
-    train_loader, _ = get_dataloaders(
+    train_loader, val_loader = get_dataloaders(
         csv_path=cfg.CSV_PATH,      # <--- AJUSTA EN config.py
         root_dir=cfg.ROOT_DIR,      # <--- AJUSTA EN config.py
         audio_processor=ap,
@@ -255,8 +259,7 @@ def train(cfg):
         print(f"Fin Epoch {epoch+1} | Loss: {avg_loss:.4f} | Tiempo: {epoch_time/60:.1f} min | Restante estimado: {estimated_remaining/3600:.1f}h")
 
         log_training_loss(epoch, avg_loss, log_interval=1, base_path=cfg.DRIVE_LOG_PATH)
-
-        log_training_loss(epoch, avg_loss, log_interval=1, base_path=cfg.DRIVE_LOG_PATH)
+        writer.add_scalar('Loss/train', avg_loss, epoch + 1)
         # Definimos los nomrbes de los archivos de guardado
         current_epoch_save = epoch + 1
 
@@ -275,6 +278,9 @@ def train(cfg):
             print(f"Guardado completado con éxito")
         except Exception as e:
             print(f"Error al guardar el checkpoint {e}")
+
+        if (epoch + 1) % 20 == 0:
+            evaluate_model(model, val_loader, mp, DEVICE, writer=writer, epoch=epoch)
 
 
 if __name__ == "__main__":
