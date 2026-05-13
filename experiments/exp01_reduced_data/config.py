@@ -11,8 +11,8 @@ MAX_SAMPLES_TRAIN = 150
 MAX_SAMPLES_VAL   = 30
 
 # --- Hiperparámetros de entrenamiento (igual que v1_baseline) ---
-BATCH_SIZE              = 2
-GRAD_ACCUMULATION_STEPS = 8   # Batch efectivo = 16
+BATCH_SIZE              = 8
+GRAD_ACCUMULATION_STEPS = 4   # Batch efectivo = 32 (optimizado para GPU A10 24 GB)
 LEARNING_RATE           = 1e-4
 EPOCHS                  = 1000
 

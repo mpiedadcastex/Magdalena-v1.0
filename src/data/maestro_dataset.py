@@ -121,20 +121,20 @@ def get_dataloaders(csv_path, root_dir, audio_processor, midi_processor, batch_s
     # Creamos los Loaders
     train_loader = DataLoader(
         train_ds, 
-        batch_size=batch_size, 
-        shuffle=True, 
-        collate_fn=collate_fn, 
-        num_workers=2
-        #,pin_memory=True
+        batch_size=batch_size,
+        shuffle=True,
+        collate_fn=collate_fn,
+        num_workers=2,
+        pin_memory=True
     )
-    
+
     val_loader = DataLoader(
         val_ds,
         batch_size=batch_size,
-        shuffle=False, 
+        shuffle=False,
         collate_fn=collate_fn,
-        num_workers=2
-        #,pin_memory=True
+        num_workers=2,
+        pin_memory=True
     )
 
     return train_loader, val_loader
