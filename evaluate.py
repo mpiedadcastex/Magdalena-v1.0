@@ -282,14 +282,15 @@ def evaluate_model(model, val_loader, mp, device, writer=None, epoch=None, limit
     print(f"\n[Eval] Calculando métricas sobre {limit} muestras de validación...")
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-        for i, (audio_batch, _) in enumerate(val_loader):
-            if count >= limit:
-                break
-
+        for i in range(min(limit, len(val_ds))):
             row = val_ds.metadata.iloc[i]
             midi_filename_gt = os.path.join(val_ds.root_dir, row['midi_filename'])
 
             try:
+                # Acceder directamente al dataset (batch=1 garantizado)
+                spectrogram, _ = val_ds[i]
+                audio_batch = spectrogram.unsqueeze(0)  # (1, 229, time)
+
                 max_frames = int(TEST_DURATION * FPS)
                 if audio_batch.shape[2] > max_frames:
                     audio_batch = audio_batch[:, :, :max_frames]
