@@ -34,6 +34,7 @@ tqdm>=4.66.0         # Barras de progreso
 requests>=2.31.0     # Para descargar el MAESTRO dataset
 
 # --- Visualización y Notebooks ---
+tensorboard>=2.14.0
 matplotlib>=3.8.0
 seaborn>=0.13.0
 ipykernel>=6.25.0
