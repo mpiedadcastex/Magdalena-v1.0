@@ -8,12 +8,8 @@ import pandas as pd
 from .audio_proc import AudioProcessor
 from .midi_proc import MidiProcessor
 
-# --- MEDIDA DE EMERGENCIA: CORTE DURO ---
-MAX_AUDIO_FRAMES = 4096  # Límite de seguridad para Audio (~1,5 min)
-MAX_MIDI_TOKENS = 1500
-
 class MaestroDataset(Dataset):
-    def __init__(self, csv_file, root_dir, audio_processor: AudioProcessor, midi_processor: MidiProcessor, split='train', max_samples=None):
+    def __init__(self, csv_file, root_dir, audio_processor: AudioProcessor, midi_processor: MidiProcessor, split='train', max_samples=None, max_audio_frames=4096, max_midi_tokens=1500):
         """
         Dataset para el conjunto MAESTRO.
 
@@ -36,6 +32,8 @@ class MaestroDataset(Dataset):
             ).reset_index(drop=True)
 
         self.root_dir = root_dir
+        self.max_audio_frames = max_audio_frames
+        self.max_midi_tokens = max_midi_tokens
 
         # Inicializar los procesadores
         self.audio_processor = audio_processor
@@ -58,13 +56,13 @@ class MaestroDataset(Dataset):
         # Output -> tokens
         midi_tokens = self.midi_processor.encode_midi(midi_path)
 
-        # Corte de seguridad a ver si se puede entrenar
-        # AUDIO
-        if (spectrogram.shape[1] > MAX_AUDIO_FRAMES):
-            spectrogram = spectrogram[:, :MAX_AUDIO_FRAMES]
-        
-        if (len(midi_tokens) > MAX_MIDI_TOKENS):
-            midi_tokens = midi_tokens[:MAX_MIDI_TOKENS]
+        # Recorte para acotar el uso de VRAM: secuencias largas disparan la memoria
+        # del encoder cuadráticamente. Los límites se configuran por experimento en config.py.
+        if spectrogram.shape[1] > self.max_audio_frames:
+            spectrogram = spectrogram[:, :self.max_audio_frames]
+
+        if len(midi_tokens) > self.max_midi_tokens:
+            midi_tokens = midi_tokens[:self.max_midi_tokens]
         
         # Convertimos ambas salidas a tensores
         # Audio -> Float    Midi -> Long
@@ -101,7 +99,7 @@ def collate_fn(batch):
     return spectrograms_padded, midis_padded
     
 
-def get_dataloaders(csv_path, root_dir, audio_processor, midi_processor, batch_size=1, max_samples_train=None, max_samples_val=None):
+def get_dataloaders(csv_path, root_dir, audio_processor, midi_processor, batch_size=1, max_samples_train=None, max_samples_val=None, max_audio_frames=4096, max_midi_tokens=1500):
     """
     Función para crear los DataLoaders de Train y Validation pasando los procesadores configurados.
 
@@ -113,10 +111,12 @@ def get_dataloaders(csv_path, root_dir, audio_processor, midi_processor, batch_s
         batch_size (int): Tamaño del batch
         max_samples_train (int | None): Límite de muestras de entrenamiento. None = todas.
         max_samples_val (int | None): Límite de muestras de validación. None = todas.
+        max_audio_frames (int): Límite de frames de audio por muestra (controla VRAM).
+        max_midi_tokens (int): Límite de tokens MIDI por muestra (controla VRAM).
     """
     # Se crean los Datasets pasando las instancias
-    train_ds = MaestroDataset(csv_path, root_dir, audio_processor, midi_processor, split='train', max_samples=max_samples_train)
-    val_ds = MaestroDataset(csv_path, root_dir, audio_processor, midi_processor, split='validation', max_samples=max_samples_val)
+    train_ds = MaestroDataset(csv_path, root_dir, audio_processor, midi_processor, split='train', max_samples=max_samples_train, max_audio_frames=max_audio_frames, max_midi_tokens=max_midi_tokens)
+    val_ds = MaestroDataset(csv_path, root_dir, audio_processor, midi_processor, split='validation', max_samples=max_samples_val, max_audio_frames=max_audio_frames, max_midi_tokens=max_midi_tokens)
 
     # Creamos los Loaders
     train_loader = DataLoader(

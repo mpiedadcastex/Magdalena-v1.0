@@ -10,9 +10,16 @@ EXP_DESCRIPTION = (
 MAX_SAMPLES_TRAIN = 150
 MAX_SAMPLES_VAL   = 30
 
-# --- Hiperparámetros de entrenamiento (igual que v1_baseline) ---
-BATCH_SIZE              = 8
-GRAD_ACCUMULATION_STEPS = 4   # Batch efectivo = 32 (limitado por la atención del Sparsifiner)
+# --- Longitud de secuencia (igual que v1_baseline) ---
+# Límites explícitos para que no dependan de la constante global de maestro_dataset.py
+MAX_AUDIO_FRAMES = 4096
+MAX_MIDI_TOKENS  = 1500
+
+# --- Hiperparámetros de entrenamiento ---
+# BATCH_SIZE reducido de 8 a 2 para caber en T4 (15 GB VRAM).
+# GRAD_ACCUMULATION_STEPS aumentado proporcionalmente para mantener batch efectivo = 32.
+BATCH_SIZE              = 2
+GRAD_ACCUMULATION_STEPS = 16
 LEARNING_RATE           = 1e-4
 EPOCHS                  = 1000
 

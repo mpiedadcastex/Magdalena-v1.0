@@ -104,7 +104,9 @@ def train(cfg):
         midi_processor=mp,
         batch_size=cfg.BATCH_SIZE,
         max_samples_train=cfg.MAX_SAMPLES_TRAIN,
-        max_samples_val=cfg.MAX_SAMPLES_VAL
+        max_samples_val=cfg.MAX_SAMPLES_VAL,
+        max_audio_frames=getattr(cfg, 'MAX_AUDIO_FRAMES', 4096),
+        max_midi_tokens=getattr(cfg, 'MAX_MIDI_TOKENS', 1500)
     )
 
     # 2. PREPARAR MODELO

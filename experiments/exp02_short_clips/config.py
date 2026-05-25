@@ -13,9 +13,12 @@ MAX_SAMPLES_VAL   = None
 MAX_AUDIO_FRAMES = 2048   # baseline: 4096
 MAX_MIDI_TOKENS  = 750    # baseline: 1500
 
-# --- Hiperparámetros de entrenamiento (igual que v1_baseline) ---
-BATCH_SIZE              = 8
-GRAD_ACCUMULATION_STEPS = 4   # Batch efectivo = 32 (limitado por la atención del Sparsifiner)
+# --- Hiperparámetros de entrenamiento ---
+# BATCH_SIZE reducido de 8 a 4 para caber en T4 (15 GB VRAM); los clips cortos
+# permiten un batch mayor que en exp01. GRAD_ACCUMULATION_STEPS ajustado para
+# mantener batch efectivo = 32.
+BATCH_SIZE              = 4
+GRAD_ACCUMULATION_STEPS = 8
 LEARNING_RATE           = 1e-4
 EPOCHS                  = 1000
 
