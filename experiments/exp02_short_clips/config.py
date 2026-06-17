@@ -14,11 +14,11 @@ MAX_AUDIO_FRAMES = 2048   # baseline: 4096
 MAX_MIDI_TOKENS  = 750    # baseline: 1500
 
 # --- Hiperparámetros de entrenamiento ---
-# Con A100 80 GB solo se usaban 3.3 GB con BATCH_SIZE=32 (4.1% de VRAM).
-# BATCH_SIZE escalado a 128 (x4): las secuencias cortas (2048 frames vs 4096 de exp01)
-# permiten el doble de batch que exp01 con la misma presión de memoria.
-# GRAD_ACCUMULATION_STEPS = 1: sin acumulación, batch efectivo = 128.
-BATCH_SIZE              = 128
+# BATCH_SIZE = 32 para mantener coherencia de batch efectivo con exp01.
+# Las secuencias cortas (2048 frames) permitirían un batch mayor, pero se unifica
+# en 32 para que los experimentos sean comparables entre sí.
+# GRAD_ACCUMULATION_STEPS = 1: sin acumulación, batch efectivo = 32.
+BATCH_SIZE              = 32
 GRAD_ACCUMULATION_STEPS = 1
 LEARNING_RATE           = 1e-4
 EPOCHS                  = 1000
