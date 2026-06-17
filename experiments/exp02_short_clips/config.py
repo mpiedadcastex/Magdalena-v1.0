@@ -1,8 +1,7 @@
 EXP_NAME = "exp02_short_clips"
 EXP_DESCRIPTION = (
     "Eje 2: solo reducción de la longitud de los clips de audio y MIDI. "
-    "Número de muestras idéntico a v1_baseline. "
-    "Arquitectura escalada (EMBED_DIM=512, 6 capas, NHEAD=8) para aprovechar A100 80 GB. "
+    "Número de muestras y arquitectura idénticos a v1_baseline. "
     "Objetivo: validar si clips más cortos aceleran el entrenamiento sin degradar la convergencia."
 )
 
@@ -24,15 +23,12 @@ GRAD_ACCUMULATION_STEPS = 1
 LEARNING_RATE           = 1e-4
 EPOCHS                  = 1000
 
-# --- Arquitectura del modelo ---
-# Escalada respecto a v1_baseline para aprovechar los 80 GB de VRAM del A100.
-# EMBED_DIM: 256 → 512 (mayor capacidad representacional).
-# Capas encoder/decoder: 4 → 6 (más profundidad).
-# NHEAD: 4 → 8 (más cabezas de atención, alineado con EMBED_DIM=512).
-EMBED_DIM          = 512
-NUM_ENCODER_LAYERS = 6
-NUM_DECODER_LAYERS = 6
-NHEAD              = 8
+# --- Arquitectura del modelo (igual que v1_baseline) ---
+# Mantenida intacta para compatibilidad con checkpoints existentes.
+EMBED_DIM          = 256
+NUM_ENCODER_LAYERS = 4
+NUM_DECODER_LAYERS = 4
+NHEAD              = 4
 
 # --- Rutas (Google Colab) ---
 CSV_PATH  = '/content/drive/MyDrive/TFG_Data/maestro-v3.0.0/maestro-v3.0.0_metadata.csv'
