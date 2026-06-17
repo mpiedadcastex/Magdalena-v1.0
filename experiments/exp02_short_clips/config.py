@@ -14,11 +14,10 @@ MAX_AUDIO_FRAMES = 2048   # baseline: 4096
 MAX_MIDI_TOKENS  = 750    # baseline: 1500
 
 # --- Hiperparámetros de entrenamiento ---
-# BATCH_SIZE = 8 para A100 40 GB VRAM (límite práctico por la atención del Sparsifiner);
-# los clips cortos permitirían un batch mayor, pero el cuello de botella es la atención.
-# GRAD_ACCUMULATION_STEPS = 4 para mantener batch efectivo = 32.
-BATCH_SIZE              = 8
-GRAD_ACCUMULATION_STEPS = 4   # Batch efectivo = 32 (limitado por la atención del Sparsifiner)
+# BATCH_SIZE = 32 para A100 80 GB VRAM; las secuencias cortas (2048 frames) permiten
+# duplicar el batch respecto a exp01 sin OOM. GRAD_ACCUMULATION_STEPS = 1 (sin acumulación).
+BATCH_SIZE              = 32
+GRAD_ACCUMULATION_STEPS = 1   # Batch efectivo = 32 (sin acumulación gracias a la VRAM disponible)
 LEARNING_RATE           = 1e-4
 EPOCHS                  = 1000
 
