@@ -16,10 +16,10 @@ MAX_AUDIO_FRAMES = 4096
 MAX_MIDI_TOKENS  = 1500
 
 # --- Hiperparámetros de entrenamiento ---
-# BATCH_SIZE reducido de 8 a 2 para caber en T4 (15 GB VRAM).
-# GRAD_ACCUMULATION_STEPS aumentado proporcionalmente para mantener batch efectivo = 32.
-BATCH_SIZE              = 2
-GRAD_ACCUMULATION_STEPS = 16
+# BATCH_SIZE = 8 para A100 40 GB VRAM (límite práctico por la atención del Sparsifiner).
+# GRAD_ACCUMULATION_STEPS = 4 para mantener batch efectivo = 32.
+BATCH_SIZE              = 8
+GRAD_ACCUMULATION_STEPS = 4   # Batch efectivo = 32 (limitado por la atención del Sparsifiner)
 LEARNING_RATE           = 1e-4
 EPOCHS                  = 1000
 
