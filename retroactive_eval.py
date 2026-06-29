@@ -30,7 +30,7 @@ from utils import get_model_config
 from evaluate import evaluate_model
 
 
-EVAL_INTERVAL = 20  # Debe coincidir con el intervalo usado en train.py
+EVAL_INTERVAL = 5  # Debe coincidir con el intervalo usado en train.py
 
 
 # ---------------------------------------------------------------------------
