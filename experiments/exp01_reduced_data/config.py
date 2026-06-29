@@ -16,11 +16,10 @@ MAX_AUDIO_FRAMES = 4096
 MAX_MIDI_TOKENS  = 1500
 
 # --- Hiperparámetros de entrenamiento ---
-# BATCH_SIZE = 32 para A100 80 GB VRAM. Con BATCH_SIZE=64 se producía OOM (la atención
-# es O(batch × seq²) con secuencias de 4096 frames). A 32 se mantiene margen suficiente.
-# GRAD_ACCUMULATION_STEPS = 1: sin acumulación, batch efectivo = 32.
-BATCH_SIZE              = 32
-GRAD_ACCUMULATION_STEPS = 1
+# BATCH_SIZE reducido de 8 a 2 para caber en T4 (15 GB VRAM).
+# GRAD_ACCUMULATION_STEPS aumentado proporcionalmente para mantener batch efectivo = 32.
+BATCH_SIZE              = 2
+GRAD_ACCUMULATION_STEPS = 16
 LEARNING_RATE           = 1e-4
 EPOCHS                  = 1000
 

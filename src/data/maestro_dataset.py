@@ -119,15 +119,15 @@ def get_dataloaders(csv_path, root_dir, audio_processor, midi_processor, batch_s
     val_ds = MaestroDataset(csv_path, root_dir, audio_processor, midi_processor, split='validation', max_samples=max_samples_val, max_audio_frames=max_audio_frames, max_midi_tokens=max_midi_tokens)
 
     # Creamos los Loaders
-    # num_workers=8: el cuello de botella es la carga de audio desde Drive (I/O), no la GPU.
-    # Con 167 GB de RAM disponible en A100 80 GB, 8 workers reducen significativamente
-    # el tiempo de espera entre batches y mantienen la GPU ocupada.
+    # num_workers=2: valor conservador para T4 (15 GB VRAM). El cuello de botella
+    # es la carga de audio desde Drive (I/O); aumentar workers mejora el throughput
+    # pero en T4 el sistema tiene menos recursos de CPU disponibles.
     train_loader = DataLoader(
         train_ds,
         batch_size=batch_size,
         shuffle=True,
         collate_fn=collate_fn,
-        num_workers=8,
+        num_workers=2,
         pin_memory=True
     )
 
@@ -136,7 +136,7 @@ def get_dataloaders(csv_path, root_dir, audio_processor, midi_processor, batch_s
         batch_size=batch_size,
         shuffle=False,
         collate_fn=collate_fn,
-        num_workers=8,
+        num_workers=2,
         pin_memory=True
     )
 

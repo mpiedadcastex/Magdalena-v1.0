@@ -14,12 +14,11 @@ MAX_AUDIO_FRAMES = 2048   # baseline: 4096
 MAX_MIDI_TOKENS  = 750    # baseline: 1500
 
 # --- Hiperparámetros de entrenamiento ---
-# BATCH_SIZE = 32 para mantener coherencia de batch efectivo con exp01.
-# Las secuencias cortas (2048 frames) permitirían un batch mayor, pero se unifica
-# en 32 para que los experimentos sean comparables entre sí.
-# GRAD_ACCUMULATION_STEPS = 1: sin acumulación, batch efectivo = 32.
-BATCH_SIZE              = 32
-GRAD_ACCUMULATION_STEPS = 1
+# BATCH_SIZE reducido de 8 a 4 para caber en T4 (15 GB VRAM); los clips cortos
+# permiten un batch mayor que en exp01 con secuencias de 4096 frames.
+# GRAD_ACCUMULATION_STEPS ajustado para mantener batch efectivo = 32.
+BATCH_SIZE              = 4
+GRAD_ACCUMULATION_STEPS = 8
 LEARNING_RATE           = 1e-4
 EPOCHS                  = 1000
 
