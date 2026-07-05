@@ -164,14 +164,22 @@ def compute_metrics(ref_int, ref_p, ref_v, est_int, est_p, est_v):
 
 
 def predict_sampling(model, audio_tensor, mp):
-    """Generación autorregressiva con temperature sampling (T=0.8)."""
+    """
+    Generación autorregressiva con temperature sampling (T=0.8).
+    El encoder se ejecuta UNA sola vez y su salida (memory) se reutiliza
+    en cada paso del decoder — crítico para velocidad de inferencia.
+    """
     model.eval()
-    device = audio_tensor.device
+    device    = audio_tensor.device
     generated = torch.tensor([[mp.token_sos]], dtype=torch.long, device=device)
 
     with torch.no_grad():
+        # Codificar el audio una sola vez: (1, T_audio, d_model)
+        memory = model.encoder(audio_tensor)
+
         for _ in range(MAX_GEN_TOKENS):
-            logits     = model(audio_tensor, generated, tgt_padding_mask=None)
+            logits     = model.decoder(tgt=generated, memory=memory,
+                                       tgt_padding_mask=None)
             next_logit = logits[:, -1, :] / TEMPERATURE
             probs      = torch.softmax(next_logit, dim=-1)
             next_tok   = torch.multinomial(probs, num_samples=1)
