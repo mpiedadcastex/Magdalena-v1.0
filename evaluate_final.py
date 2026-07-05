@@ -46,48 +46,62 @@ from src.models.transformer import PianoTranscriptionModel
 from utils import get_model_config
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# CONFIGURACIÓN — ajustar rutas para Colab si es necesario
+# CONFIGURACIÓN — detección automática de entorno (Colab vs local)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Rutas locales (Windows)
-CSV_PATH = 'data/maestro-v3.0.0_metadata.csv'
-ROOT_DIR = 'data/raw/maestro-v3.0.0/maestro-v3.0.0'
+_IN_COLAB = os.path.isdir('/content/drive')
 
-# Rutas Colab (descomentar si se ejecuta allí):
-# CSV_PATH = '/content/drive/MyDrive/TFG_Data/maestro-v3.0.0/maestro-v3.0.0_metadata.csv'
-# ROOT_DIR = '/content/drive/MyDrive/TFG_Data/maestro-v3.0.0/maestro-v3.0.0'
+if _IN_COLAB:
+    CSV_PATH   = '/content/drive/MyDrive/TFG_Data/maestro-v3.0.0/maestro-v3.0.0_metadata.csv'
+    ROOT_DIR   = '/content/drive/MyDrive/TFG_Data/maestro-v3.0.0/maestro-v3.0.0'
+    _CKPT_BASE = '/content/drive/MyDrive/TFG_Project/MPCS/checkpoints'
+    # En Drive los checkpoints no tienen el sufijo de ranking local (-001, -002…)
+    _CKPT = {
+        'v1_baseline':        f'{_CKPT_BASE}/v1_baseline/model/model_epoch_98.pth',
+        'exp01_reduced_data': f'{_CKPT_BASE}/exp01_reduced_data/model/model_epoch_514.pth',
+        'exp02_short_clips':  f'{_CKPT_BASE}/exp02_short_clips/model/model_epoch_57.pth',
+    }
+else:
+    CSV_PATH   = 'data/maestro-v3.0.0_metadata.csv'
+    ROOT_DIR   = 'data/raw/maestro-v3.0.0/maestro-v3.0.0'
+    # Localmente los archivos descargados incluyen sufijo de ranking
+    _CKPT = {
+        'v1_baseline':        'checkpoints/v1_baseline/model/model_epoch_98-001.pth',
+        'exp01_reduced_data': 'checkpoints/exp01_reduced_data/model/model_epoch_514.pth',
+        'exp02_short_clips':  'checkpoints/exp02_short_clips/model/model_epoch_57-001.pth',
+    }
 
 RESULTS_DIR = 'results'
 
-# Checkpoints: sufijo -001 indica mejor val_loss según ranking de Colab.
+# Checkpoints: sufijo -001 en nombres locales indica mejor val_loss según ranking.
 # exp01 no tiene ranking; se usa la época más reciente disponible (514).
 EXPERIMENTS = [
     {
         'name':             'v1_baseline',
         'label':            'v1_baseline',
-        'checkpoint':       'checkpoints/v1_baseline/model/model_epoch_98-001.pth',
+        'checkpoint':       _CKPT['v1_baseline'],
         'epoch':            98,
         'max_audio_frames': 4096,   # 81.92 s (hop=320, fs=16000)
         'csv_out':          'results/v1_baseline_test_results.csv',
-        'val_loss_note':    'mejor checkpoint (sufijo -001)',
+        'val_loss_note':    'mejor checkpoint (epoca 98)',
     },
     {
         'name':             'exp01_reduced_data',
         'label':            'exp01',
-        'checkpoint':       'checkpoints/exp01_reduced_data/model/model_epoch_514.pth',
+        'checkpoint':       _CKPT['exp01_reduced_data'],
         'epoch':            514,
         'max_audio_frames': 4096,
         'csv_out':          'results/exp01_test_results.csv',
-        'val_loss_note':    'última época disponible (sin log de val_loss)',
+        'val_loss_note':    'ultima epoca disponible (sin log de val_loss)',
     },
     {
         'name':             'exp02_short_clips',
         'label':            'exp02',
-        'checkpoint':       'checkpoints/exp02_short_clips/model/model_epoch_57-001.pth',
+        'checkpoint':       _CKPT['exp02_short_clips'],
         'epoch':            57,
         'max_audio_frames': 2048,   # 40.96 s — igual que durante el entrenamiento
         'csv_out':          'results/exp02_test_results.csv',
-        'val_loss_note':    'mejor checkpoint (sufijo -001)',
+        'val_loss_note':    'mejor checkpoint (epoca 57)',
     },
 ]
 
