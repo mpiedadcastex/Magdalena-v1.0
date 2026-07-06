@@ -21,12 +21,8 @@ _IN_COLAB = os.path.isdir('/content/drive')
 _DRIVE_BASE  = '/content/drive/MyDrive/TFG_Project/MPCS/checkpoints'
 _LOCAL_BASE  = 'checkpoints'
 
-# Carpetas de cada experimento (nombre de carpeta en Drive / local)
-_EXP_DIRS = {
-    'v1_baseline':        'v1_baseline',
-    'exp01_reduced_data': 'exp01',
-    'exp02_short_clips':  'exp02',
-}
+# Nombres de carpeta en Drive/local — idénticos al nombre del experimento
+_EXPERIMENTS = ['v1_baseline', 'exp01_reduced_data', 'exp02_short_clips']
 
 # ─── Parsing del log ──────────────────────────────────────────────────────────
 # Formato de cada fila: | 2024-01-01 12:00:00  | Epoch:    1    | Loss: 0.123456     |
@@ -51,15 +47,13 @@ def parse_loss_log(log_path):
 
 
 def rebuild(exp_name):
-    exp_folder = _EXP_DIRS.get(exp_name)
-    if exp_folder is None:
+    if exp_name not in _EXPERIMENTS:
         print(f"Experimento desconocido: '{exp_name}'")
-        print(f"Opciones disponibles: {list(_EXP_DIRS.keys())}")
+        print(f"Opciones disponibles: {_EXPERIMENTS}")
         return
 
-    # Ruta al archivo de log
     base     = _DRIVE_BASE if _IN_COLAB else _LOCAL_BASE
-    log_path = os.path.join(base, exp_folder, 'training_loss_log.txt')
+    log_path = os.path.join(base, exp_name, 'training_loss_log.txt')
 
     if not os.path.exists(log_path):
         print(f"No se encontró el archivo de log en:\n  {log_path}")
@@ -74,27 +68,27 @@ def rebuild(exp_name):
 
     print(f"Epochs encontradas: {len(entries)} (de {entries[0][0]} a {entries[-1][0]})")
 
-    # Directorio de salida para TensorBoard
-    tb_dir = os.path.join('runs', exp_name)
-    os.makedirs(tb_dir, exist_ok=True)
-
+    # Los eventos se guardan en la misma carpeta del experimento
+    tb_dir = os.path.join(base, exp_name)
     writer = SummaryWriter(log_dir=tb_dir)
     for epoch, loss in entries:
         writer.add_scalar('Loss/train', loss, epoch)
     writer.close()
 
     print(f"Archivos TensorBoard escritos en: {tb_dir}")
-    print(f"Para visualizar ejecuta:\n  tensorboard --logdir runs/")
+    print(f"Para visualizar ejecuta:\n  tensorboard --logdir {base}/")
 
 
 def main():
     parser = argparse.ArgumentParser(description="Reconstruye curvas TensorBoard desde training_loss_log.txt")
     parser.add_argument(
-        '--exp', type=str, default='v1_baseline',
-        help='Nombre del experimento. Por defecto: v1_baseline'
+        '--exp', type=str, default=None,
+        help='Nombre del experimento. Sin --exp reconstruye todos.'
     )
     args = parser.parse_args()
-    rebuild(args.exp)
+    targets = [args.exp] if args.exp else _EXPERIMENTS
+    for exp in targets:
+        rebuild(exp)
 
 
 if __name__ == '__main__':
