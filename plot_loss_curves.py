@@ -27,7 +27,7 @@ _IN_COLAB   = os.path.isdir('/content/drive')
 _DRIVE_BASE = '/content/drive/MyDrive/TFG_Project/MPCS/checkpoints'
 _LOCAL_BASE = 'checkpoints'
 
-PLOTS_DIR   = 'plots'
+PLOTS_DIR = os.path.join('results', 'plots', 'loss')
 
 # ─── Configuración de experimentos ────────────────────────────────────────────
 EXPERIMENTS = [
